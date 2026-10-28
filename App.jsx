@@ -192,7 +192,6 @@ export default function App() {
     }
   };
 
-  // Müşteri Sayfasından Doğrudan Müşteri Ekleme
   const handleAddDirectCustomer = (e) => {
     e.preventDefault();
     if (!directCustName || !directCustPhone) {
@@ -485,7 +484,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="bg-emerald-500 p-2 rounded-xl text-slate-950 font-bold">✨</div>
             <div>
@@ -503,50 +502,51 @@ export default function App() {
           </button>
         </div>
 
-        <div className="bg-slate-800 border-t border-slate-700">
-          <div className="max-w-6xl mx-auto px-4 flex space-x-1 overflow-x-auto text-sm">
+        {/* Kısaltılmış ve Tam Yayılmış Üst Menü */}
+        <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
+          <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
             {currentUser.role === 'admin' && (
-              <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'dashboard' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+              <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                 <LayoutDashboard className="w-4 h-4" />
                 <span>Dashboard</span>
               </button>
             )}
 
-            <button onClick={() => setActiveTab('jobs')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+            <button onClick={() => setActiveTab('jobs')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
               <ShoppingBag className="w-4 h-4" />
               <span>İş Listesi ({currentUser.role === 'worker' ? jobs.filter(j => j.assignedWorkers?.includes(currentUser.name)).length : jobs.length})</span>
             </button>
 
             {currentUser.role === 'admin' && (
               <>
-                <button onClick={() => setActiveTab('new-job')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'new-job' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                <button onClick={() => setActiveTab('new-job')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'new-job' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <PlusCircle className="w-4 h-4" />
                   <span>Yeni İş Kaydı</span>
                 </button>
 
-                <button onClick={() => setActiveTab('customers')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'customers' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                <button onClick={() => setActiveTab('customers')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'customers' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <BookOpen className="w-4 h-4" />
-                  <span>Müşteri Listesi</span>
+                  <span>Müşteriler</span>
                 </button>
 
-                <button onClick={() => setActiveTab('workers')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'workers' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                <button onClick={() => setActiveTab('workers')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'workers' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <Users className="w-4 h-4" />
-                  <span>Personel Yönetimi</span>
+                  <span>Personel</span>
                 </button>
 
-                <button onClick={() => setActiveTab('catalog')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'catalog' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                <button onClick={() => setActiveTab('catalog')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'catalog' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <Settings className="w-4 h-4" />
-                  <span>Fiyat Kataloğu</span>
+                  <span>Fiyatlar</span>
                 </button>
 
-                <button onClick={() => setActiveTab('reminders')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'reminders' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                <button onClick={() => setActiveTab('reminders')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'reminders' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <RefreshCw className="w-4 h-4" />
-                  <span>KVKK & 6 Ay Hatırlatıcı</span>
+                  <span>Hatırlatıcılar</span>
                 </button>
 
-                <button onClick={() => setActiveTab('finance')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'finance' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                <button onClick={() => setActiveTab('finance')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'finance' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <TrendingUp className="w-4 h-4" />
-                  <span>Kasa & Hakediş</span>
+                  <span>Kasa</span>
                 </button>
               </>
             )}
@@ -1038,7 +1038,7 @@ export default function App() {
           </div>
         )}
 
-        {/* SAHA PERSONELİ (Hakediş Yazısı Kaldırıldı) */}
+        {/* SAHA PERSONELİ */}
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
