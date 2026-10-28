@@ -3,7 +3,7 @@ import {
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
   MessageSquare, DollarSign, Edit3, Trash2, Camera, 
-  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck
+  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus
 } from 'lucide-react';
 
 // Varsayılan Hizmet Kataloğu
@@ -16,14 +16,13 @@ const DEFAULT_SERVICES = [
   { id: '6', name: 'Sandalye Yıkama', price: 150, unit: 'adet' },
 ];
 
-// Saha Personeli Listesi (Ad, Şifre, Hakediş Oranı)
-const WORKERS = [
+// Varsayılan Saha Personelleri (Panelden yönetilebilir)
+const DEFAULT_WORKERS = [
   { id: 'w1', name: 'Yunus Yıldız', pin: '1234', defaultHakedis: 300 },
   { id: 'w2', name: 'Ahmet Demir', pin: '5678', defaultHakedis: 250 }
 ];
 
 export default function App() {
-  // Giriş ve Rol Durumları
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('pevuno_logged_user');
     return saved ? JSON.parse(saved) : null;
@@ -31,13 +30,19 @@ export default function App() {
   
   const [loginPin, setLoginPin] = useState('');
   const [loginType, setLoginType] = useState('admin');
-  const [selectedWorkerId, setSelectedWorkerId] = useState(WORKERS[0].id);
+  const [selectedWorkerId, setSelectedWorkerId] = useState('');
 
   const [activeTab, setActiveTab] = useState('jobs'); 
   
   const [services, setServices] = useState(() => {
     const saved = localStorage.getItem('pevuno_services');
     return saved ? JSON.parse(saved) : DEFAULT_SERVICES;
+  });
+
+  // Dinamik Personel Listesi (LocalStorage)
+  const [workers, setWorkers] = useState(() => {
+    const saved = localStorage.getItem('pevuno_workers');
+    return saved ? JSON.parse(saved) : DEFAULT_WORKERS;
   });
 
   const [jobs, setJobs] = useState(() => {
@@ -79,8 +84,14 @@ export default function App() {
   const [discountValue, setDiscountValue] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
   const [jobDate, setJobDate] = useState(new Date().toISOString().split('T')[0]);
-  const [assignedWorker, setAssignedWorker] = useState(WORKERS[0].name);
-  const [workerHakedis, setWorkerHakedis] = useState(WORKERS[0].defaultHakedis);
+  
+  const [assignedWorker, setAssignedWorker] = useState(workers[0]?.name || '');
+  const [workerHakedis, setWorkerHakedis] = useState(workers[0]?.defaultHakedis || 300);
+
+  // Yeni Personel Formu State'leri
+  const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerPin, setNewWorkerPin] = useState('');
+  const [newWorkerHakedis, setNewWorkerHakedis] = useState('');
 
   // Katalog Yeni Hizmet
   const [newService, setNewService] = useState({ name: '', price: '', unit: 'adet' });
@@ -91,6 +102,7 @@ export default function App() {
 
   // Kayıt İşlemleri
   useEffect(() => { localStorage.setItem('pevuno_services', JSON.stringify(services)); }, [services]);
+  useEffect(() => { localStorage.setItem('pevuno_workers', JSON.stringify(workers)); }, [workers]);
   useEffect(() => { localStorage.setItem('pevuno_jobs', JSON.stringify(jobs)); }, [jobs]);
   useEffect(() => { localStorage.setItem('pevuno_expenses', JSON.stringify(expenses)); }, [expenses]);
   useEffect(() => { localStorage.setItem('pevuno_logged_user', JSON.stringify(currentUser)); }, [currentUser]);
@@ -125,12 +137,41 @@ export default function App() {
         alert('Hatalı Yönetici Şifresi! (Şifre: 1453)');
       }
     } else {
-      const worker = WORKERS.find(w => w.id === selectedWorkerId);
+      const worker = workers.find(w => w.id === selectedWorkerId);
       if (worker && loginPin === worker.pin) {
         setCurrentUser({ role: 'worker', name: worker.name });
       } else {
-        alert('Hatalı Personel Şifresi! (Şifre: 1234)');
+        alert('Hatalı Personel Şifresi (PIN)!');
       }
+    }
+  };
+
+  // Yeni Personel Ekleme
+  const handleAddWorker = (e) => {
+    e.preventDefault();
+    if (!newWorkerName || !newWorkerPin) {
+      alert('Lütfen personel adı ve şifresi (PIN) giriniz.');
+      return;
+    }
+
+    const newWObj = {
+      id: `w-${Date.now()}`,
+      name: newWorkerName,
+      pin: newWorkerPin,
+      defaultHakedis: Number(newWorkerHakedis) || 300
+    };
+
+    setWorkers([...workers, newWObj]);
+    setNewWorkerName('');
+    setNewWorkerPin('');
+    setNewWorkerHakedis('');
+    alert('Yeni personel başarıyla eklendi!');
+  };
+
+  // Personel Silme
+  const handleDeleteWorker = (workerId) => {
+    if (confirm('Bu personeli silmek istediğinize emin misiniz?')) {
+      setWorkers(workers.filter(w => w.id !== workerId));
     }
   };
 
@@ -157,8 +198,8 @@ export default function App() {
       paidAmount: Number(paidAmount) || 0,
       status: 'Sırada / Randevu',
       date: jobDate,
-      assignedWorker,
-      workerHakedis: Number(workerHakedis) || 0,
+      assignedWorker: assignedWorker || workers[0]?.name || 'Saha Ekibi',
+      workerHakedis: Number(workerHakedis) || 300,
       kvkkApproved: newCustomer.kvkk,
       paymentMethod: 'Elden (Saha)',
       completedByWorker: false
@@ -287,7 +328,8 @@ export default function App() {
                   onChange={(e) => setSelectedWorkerId(e.target.value)}
                   className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-slate-50"
                 >
-                  {WORKERS.map(w => (
+                  <option value="">Personel Seçin...</option>
+                  {workers.map(w => (
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
                 </select>
@@ -296,7 +338,7 @@ export default function App() {
 
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">
-                {loginType === 'admin' ? 'Yönetici Şifresi (1453)' : 'Personel Şifresi (1234)'}
+                {loginType === 'admin' ? 'Yönetici Şifresi (1453)' : 'Personel Şifresi (PIN)'}
               </label>
               <input
                 type="password"
@@ -360,6 +402,14 @@ export default function App() {
                 >
                   <PlusCircle className="w-4 h-4" />
                   <span>Yeni İş Kaydı</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('workers')}
+                  className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'workers' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Personel Yönetimi</span>
                 </button>
 
                 <button
@@ -561,6 +611,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- YENİ İŞ KAYDI --- */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
@@ -612,12 +663,12 @@ export default function App() {
                     onChange={(e) => {
                       const name = e.target.value;
                       setAssignedWorker(name);
-                      const wObj = WORKERS.find(w => w.name === name);
+                      const wObj = workers.find(w => w.name === name);
                       if (wObj) setWorkerHakedis(wObj.defaultHakedis);
                     }}
                     className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-white"
                   >
-                    {WORKERS.map(w => (
+                    {workers.map(w => (
                       <option key={w.id} value={w.name}>{w.name}</option>
                     ))}
                   </select>
@@ -752,6 +803,72 @@ export default function App() {
           </div>
         )}
 
+        {/* --- PERSONEL YÖNETİMİ PANELİ --- */}
+        {activeTab === 'workers' && currentUser.role === 'admin' && (
+          <div className="space-y-6 max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                <Users className="w-6 h-6 text-emerald-600" />
+                <span>Saha Personeli & Şifre Yönetimi</span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Buradan yeni saha personeli ekleyebilir, giriş şifrelerini (PIN) belirleyebilir ve iş başı hakediş tutarlarını ayarlayabilirsiniz.
+              </p>
+
+              {/* Yeni Personel Ekleme Formu */}
+              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Personel Adı Soyadı" 
+                  value={newWorkerName} 
+                  onChange={(e) => setNewWorkerName(e.target.value)} 
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
+                />
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Giriş Şifresi / PIN (Örn: 1234)" 
+                  value={newWorkerPin} 
+                  onChange={(e) => setNewWorkerPin(e.target.value)} 
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
+                />
+                <input 
+                  type="number" 
+                  placeholder="Varsayılan Hakediş (TL)" 
+                  value={newWorkerHakedis} 
+                  onChange={(e) => setNewWorkerHakedis(e.target.value)} 
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
+                />
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow flex items-center justify-center space-x-1">
+                  <UserPlus className="w-4 h-4 mr-1" />
+                  <span>Personel Ekle</span>
+                </button>
+              </form>
+
+              {/* Mevcut Personel Listesi */}
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {workers.map((w) => (
+                  <div key={w.id} className="p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">{w.name}</h4>
+                      <span className="text-xs text-slate-400 font-mono">Giriş PIN: {w.pin} | Hakediş: {w.defaultHakedis} TL</span>
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteWorker(w.id)} 
+                      className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                      title="Personeli Sil"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- FİYAT KATALOĞU --- */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -794,6 +911,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- KVKK & HATIRLATICILAR --- */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-4 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
@@ -825,6 +943,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- KASA & HAKEDİŞ --- */}
         {activeTab === 'finance' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -849,6 +968,7 @@ export default function App() {
         )}
       </main>
 
+      {/* --- SERVİS FİŞİ MODALI --- */}
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6">
