@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
@@ -84,9 +84,13 @@ export default function App() {
   const [kvkkTemplate, setKvkkTemplate] = useState(DEFAULT_KVKK_TEMPLATE);
   const [tempKvkkInput, setTempKvkkInput] = useState(DEFAULT_KVKK_TEMPLATE);
 
-  // Bulut Verilerini Senkronize Etme ve Canlı Tutma
+  const isLocalActionRef = useRef(false);
+
+  // Bulut Verilerini Senkronize Etme
   useEffect(() => {
     async function initCloudData() {
+      if (isLocalActionRef.current) return; // Kullanıcı işlem yaparken bulut çekmesini engelle (ezilme önleyici)
+
       const cloudServices = await fetchSupabaseData('services', DEFAULT_SERVICES);
       const cloudWorkers = await fetchSupabaseData('workers', []);
       const cloudJobs = await fetchSupabaseData('jobs', []);
@@ -105,7 +109,7 @@ export default function App() {
     }
     initCloudData();
 
-    const interval = setInterval(initCloudData, 3000);
+    const interval = setInterval(initCloudData, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -142,15 +146,25 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('pevuno_logged_user', JSON.stringify(currentUser)); }, [currentUser]);
 
-  const updateServices = (newServ) => { setServices(newServ); saveSupabaseData('services', newServ); };
-  const updateWorkers = (newWork) => { setWorkers(newWork); saveSupabaseData('workers', newWork); };
-  const updateJobs = (newJbs) => { setJobs(newJbs); saveSupabaseData('jobs', newJbs); };
-  const updateCustomers = (newCust) => { setCustomers(newCust); saveSupabaseData('customers', newCust); };
+  // Güvenli Güncelleme Fonksiyonları (Race Condition / Silinme Engelleme Korumalı)
+  const commitChange = async (key, newValue, setter) => {
+    isLocalActionRef.current = true;
+    setter(newValue);
+    await saveSupabaseData(key, newValue);
+    setTimeout(() => {
+      isLocalActionRef.current = false;
+    }, 1000);
+  };
 
-  const handleSaveKvkkTemplate = (e) => {
+  const updateServices = (newServ) => commitChange('services', newServ, setServices);
+  const updateWorkers = (newWork) => commitChange('workers', newWork, setWorkers);
+  const updateJobs = (newJbs) => commitChange('jobs', newJbs, setJobs);
+  const updateCustomers = (newCust) => commitChange('customers', newCust, setCustomers);
+
+  const handleSaveKvkkTemplate = async (e) => {
     e.preventDefault();
     setKvkkTemplate(tempKvkkInput);
-    saveSupabaseData('kvkk_template', tempKvkkInput);
+    await saveSupabaseData('kvkk_template', tempKvkkInput);
     alert('KVKK Mesaj Şablonu başarıyla güncellendi ve buluta kaydedildi!');
   };
 
@@ -213,7 +227,7 @@ export default function App() {
     setNewWorkerName('');
     setNewWorkerPin('');
     setNewWorkerPhone('');
-    alert('Yeni personel başarıyla eklendi!');
+    alert('Yeni personel başarıyla eklendi ve buluta kaydedildi!');
   };
 
   const handleDeleteWorker = (workerId) => {
@@ -1148,7 +1162,6 @@ export default function App() {
         {/* HATIRLATICILAR VE KVKK ŞABLON YÖNETİMİ */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
-            {/* KVKK Şablon Düzenleme Paneli */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
                 <ShieldCheck className="w-6 h-6 text-emerald-600" />
