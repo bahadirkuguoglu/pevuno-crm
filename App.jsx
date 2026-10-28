@@ -14,7 +14,8 @@ async function fetchSupabaseData(key, defaultVal) {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}`, {
       headers: {
         'apikey': SUPABASE_KEY,
-        'Authorization': `Bearer ${SUPABASE_KEY}`
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Cache-Control': 'no-cache'
       }
     });
     const data = await res.json();
@@ -52,6 +53,17 @@ const DEFAULT_SERVICES = [
   { id: '6', name: 'Sandalye Yıkama', price: 150, unit: 'adet' },
 ];
 
+const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]*,
+
+Evinizde/iş yerinizde hijyeni her zaman en üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨
+
+Periyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, bu mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.
+
+_(Yasal Bilgilendirme: 6698 sayılı Kişisel Verilerin Korunması Kanunu uyarınca, veri sorumlusu sıfatıyla kimlik, iletişim ve hizmet lokasyonu verileriniz yalnızca randevu operasyonlarının yürütülmesi ve periyodik bakım hatırlatmalarının yapılabilmesi amacıyla işlenmektedir. Detaylı Aydınlatma Metnimize dilediğiniz zaman ulaşabilir; kişisel verilerinizle ilgili her türlü hak ve talebinizi bizimle her zaman paylaşabilirsiniz.)_
+
+Sağlıklı ve hijyenik günler dileriz.
+Pevuno Solution`;
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('pevuno_logged_user');
@@ -69,7 +81,10 @@ export default function App() {
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [kvkkTemplate, setKvkkTemplate] = useState(DEFAULT_KVKK_TEMPLATE);
+  const [tempKvkkInput, setTempKvkkInput] = useState(DEFAULT_KVKK_TEMPLATE);
 
+  // Bulut Verilerini Senkronize Etme ve Canlı Tutma
   useEffect(() => {
     async function initCloudData() {
       const cloudServices = await fetchSupabaseData('services', DEFAULT_SERVICES);
@@ -77,18 +92,23 @@ export default function App() {
       const cloudJobs = await fetchSupabaseData('jobs', []);
       const cloudCustomers = await fetchSupabaseData('customers', []);
       const cloudExpenses = await fetchSupabaseData('expenses', []);
+      const cloudKvkk = await fetchSupabaseData('kvkk_template', DEFAULT_KVKK_TEMPLATE);
 
       setServices(cloudServices);
       setWorkers(cloudWorkers);
       setJobs(cloudJobs);
       setCustomers(cloudCustomers);
       setExpenses(cloudExpenses);
+      setKvkkTemplate(cloudKvkk);
+      setTempKvkkInput(cloudKvkk);
       setIsSynced(true);
     }
     initCloudData();
+
+    const interval = setInterval(initCloudData, 3000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Form State'leri
   const [selectedExistingCustomer, setSelectedExistingCustomer] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
@@ -97,7 +117,6 @@ export default function App() {
   const [newNote, setNewNote] = useState('');
   const [kvkkChecked, setKvkkChecked] = useState(false);
 
-  // Müşteri Sayfasından Doğrudan Müşteri Ekleme Formu
   const [directCustName, setDirectCustName] = useState('');
   const [directCustPhone, setDirectCustPhone] = useState('');
   const [directCustCompany, setDirectCustCompany] = useState('');
@@ -127,6 +146,18 @@ export default function App() {
   const updateWorkers = (newWork) => { setWorkers(newWork); saveSupabaseData('workers', newWork); };
   const updateJobs = (newJbs) => { setJobs(newJbs); saveSupabaseData('jobs', newJbs); };
   const updateCustomers = (newCust) => { setCustomers(newCust); saveSupabaseData('customers', newCust); };
+
+  const handleSaveKvkkTemplate = (e) => {
+    e.preventDefault();
+    setKvkkTemplate(tempKvkkInput);
+    saveSupabaseData('kvkk_template', tempKvkkInput);
+    alert('KVKK Mesaj Şablonu başarıyla güncellendi ve buluta kaydedildi!');
+  };
+
+  const toggleCustomerKvkkStatus = (custId) => {
+    const updated = customers.map(c => c.id === custId ? { ...c, kvkk: !c.kvkk } : c);
+    updateCustomers(updated);
+  };
 
   const formatWorkerNameMasked = (workerList) => {
     if (!workerList || workerList.length === 0) return 'Ekip';
@@ -207,12 +238,13 @@ export default function App() {
       kvkk: false,
       lastJobDate: 'Yeni Eklenen'
     };
-    updateCustomers([...customers, newCustObj]);
+    const updated = [...customers, newCustObj];
+    updateCustomers(updated);
     setDirectCustName('');
     setDirectCustPhone('');
     setDirectCustCompany('');
     setDirectCustAddress('');
-    alert('Müşteri başarıyla kaydedildi!');
+    alert('Müşteri başarıyla kaydedildi ve tüm cihazlara senkronize edildi!');
   };
 
   const handleSelectCustomerFromDropdown = (custId) => {
@@ -268,12 +300,11 @@ export default function App() {
     updateJobs([newJobObj, ...jobs]);
 
     const existingCustIndex = customers.findIndex(c => c.phone === newCustomerPhone);
+    let updatedCusts = [...customers];
     if (existingCustIndex > -1) {
       const cust = customers[existingCustIndex];
       const updatedAddresses = cust.addresses.includes(newAddress) ? cust.addresses : [...cust.addresses, newAddress];
-      const updatedCusts = [...customers];
       updatedCusts[existingCustIndex] = { ...cust, addresses: updatedAddresses, lastJobDate: jobDate, kvkk: kvkkChecked };
-      updateCustomers(updatedCusts);
     } else {
       const newCustObj = {
         id: `CUST-${Date.now()}`,
@@ -284,8 +315,9 @@ export default function App() {
         kvkk: kvkkChecked,
         lastJobDate: jobDate
       };
-      updateCustomers([...customers, newCustObj]);
+      updatedCusts.push(newCustObj);
     }
+    updateCustomers(updatedCusts);
 
     setNewCustomerName('');
     setNewCustomerPhone('');
@@ -357,11 +389,8 @@ export default function App() {
   };
 
   const sendKvkkApprovalRequest = (cust) => {
-    let msg = `Merhaba *${cust.name}*,\n\n`;
-    msg += `🌿 *PEVUNO SOLUTION* profesyonel temizlik hizmetleri olarak, kaliteyi artırmak ve 6 ayda bir periyodik hatırlatmalar yapabilmek amacıyla KVKK kapsamında onayınızı rica ederiz.\n\n`;
-    msg += `Onaylıyorsanız bu mesaja "ONAYLIYORUM" yazarak yanıt verebilirsiniz. Teşekkür ederiz! 🧼✨`;
-
-    const encoded = encodeURIComponent(msg);
+    const formattedMsg = kvkkTemplate.replace(/\[Müşteri Adı\]/g, cust.name);
+    const encoded = encodeURIComponent(formattedMsg);
     const cleanPhone = cust.phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
@@ -502,7 +531,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* Kısaltılmış ve Tam Yayılmış Üst Menü */}
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
             {currentUser.role === 'admin' && (
@@ -555,7 +583,6 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {/* DASHBOARD PANELİ */}
         {activeTab === 'dashboard' && currentUser.role === 'admin' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-3xl text-white shadow-lg">
@@ -630,7 +657,6 @@ export default function App() {
           </div>
         )}
 
-        {/* İŞ LİSTESİ */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -787,7 +813,6 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
@@ -964,10 +989,8 @@ export default function App() {
           </div>
         )}
 
-        {/* MÜŞTERİ LİSTESİ & DOĞRUDAN MÜŞTERİ EKLEME */}
         {activeTab === 'customers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
-            {/* Müşteri Ekleme Formu */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
                 <UserCheck2 className="w-5 h-5 text-emerald-600" />
@@ -987,7 +1010,6 @@ export default function App() {
               </form>
             </div>
 
-            {/* Müşteri Listesi */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
               <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
                 <BookOpen className="w-6 h-6 text-emerald-600" />
@@ -1004,11 +1026,16 @@ export default function App() {
                       <p className="text-xs text-emerald-600 font-mono mt-0.5">📞 {cust.phone}</p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      {cust.kvkk ? (
-                        <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-bold border border-emerald-200">
-                          🛡️ KVKK Onaylı
-                        </span>
-                      ) : (
+                      <button 
+                        onClick={() => toggleCustomerKvkkStatus(cust.id)} 
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-lg shadow border transition flex items-center space-x-1 ${
+                          cust.kvkk ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-emerald-50'
+                        }`}
+                      >
+                        <span>{cust.kvkk ? '🛡️ KVKK Onaylı (İptal Et)' : '☑️ KVKK Onayı İşaretle'}</span>
+                      </button>
+
+                      {!cust.kvkk && (
                         <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow">
                           🛡️ KVKK Onay İste (WP)
                         </button>
@@ -1038,7 +1065,6 @@ export default function App() {
           </div>
         )}
 
-        {/* SAHA PERSONELİ */}
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1077,7 +1103,6 @@ export default function App() {
           </div>
         )}
 
-        {/* FİYAT KATALOĞU */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1120,19 +1145,36 @@ export default function App() {
           </div>
         )}
 
-        {/* HATIRLATICILAR */}
+        {/* HATIRLATICILAR VE KVKK ŞABLON YÖNETİMİ */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
-          <div className="space-y-4 max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
+          <div className="space-y-6 max-w-4xl mx-auto">
+            {/* KVKK Şablon Düzenleme Paneli */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
-                <RefreshCw className="w-6 h-6 text-emerald-600" />
-                <span>KVKK & 6 Aylık Periyodik Hatırlatıcılar</span>
+                <ShieldCheck className="w-6 h-6 text-emerald-600" />
+                <span>WhatsApp KVKK & Onay Mesajı Şablonu Düzenle</span>
               </h2>
-              <p className="text-xs text-slate-500">Sadece KVKK onaylı müşterilerinize tek tuşla 6 aylık temizlik hatırlatması gönderebilirsiniz.</p>
+              <p className="text-xs text-slate-500">Müşterilere gönderilen onay mesajını buradan dilediğin zaman değiştirebilir ve buluta kaydedebilirsin. ([Müşteri Adı] yazan yer otomatik olarak müşterinin adıyla değiştirilir).</p>
+
+              <form onSubmit={handleSaveKvkkTemplate} className="space-y-3">
+                <textarea 
+                  rows={8}
+                  value={tempKvkkInput}
+                  onChange={(e) => setTempKvkkInput(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl p-3.5 text-xs font-mono bg-slate-50 focus:ring-2 focus:ring-emerald-500"
+                />
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs shadow transition">
+                  KVKK Şablonunu Kaydet 💾
+                </button>
+              </form>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-800 text-sm mb-3">KVKK Onaylı Müşteriler ({customers.filter(c => c.kvkk).length})</h3>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                <RefreshCw className="w-6 h-6 text-emerald-600" />
+                <span>6 Aylık Periyodik Temizlik Hatırlatıcıları</span>
+              </h2>
+
               <div className="space-y-2">
                 {customers.filter(c => c.kvkk).map(c => (
                   <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm">
@@ -1145,12 +1187,14 @@ export default function App() {
                     </button>
                   </div>
                 ))}
+                {customers.filter(c => c.kvkk).length === 0 && (
+                  <p className="text-xs text-slate-400 py-2">Henüz KVKK onaylı müşteri bulunmuyor.</p>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* KASA VE HAKEDİŞ */}
         {activeTab === 'finance' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
