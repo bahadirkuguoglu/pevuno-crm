@@ -3,10 +3,50 @@ import {
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
   MessageSquare, DollarSign, Edit3, Trash2, Camera, 
-  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus
+  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, CloudOff
 } from 'lucide-react';
 
-// Varsayılan Hizmet Kataloğu
+// Supabase Bağlantı Bilgileri
+const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_506jwPoEvILEU07Xad7zEA_ywR6FixZ";
+
+// Supabase Veri Çekme ve Kaydetme Fonksiyonları
+async function fetchSupabaseData(key, defaultVal) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return data[0].value;
+    }
+    return defaultVal;
+  } catch (err) {
+    console.error("Supabase okuma hatası:", err);
+    return defaultVal;
+  }
+}
+
+async function saveSupabaseData(key, value) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/app_data`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({ key, value })
+    });
+  } catch (err) {
+    console.error("Supabase kaydetme hatası:", err);
+  }
+}
+
 const DEFAULT_SERVICES = [
   { id: '1', name: 'Koltuk Yıkama (Standart)', price: 1200, unit: 'adet' },
   { id: '2', name: 'L Koltuk Yıkama', price: 1500, unit: 'adet' },
@@ -16,7 +56,6 @@ const DEFAULT_SERVICES = [
   { id: '6', name: 'Sandalye Yıkama', price: 150, unit: 'adet' },
 ];
 
-// Varsayılan Saha Personelleri (Panelden yönetilebilir)
 const DEFAULT_WORKERS = [
   { id: 'w1', name: 'Yunus Yıldız', pin: '1234', defaultHakedis: 300 },
   { id: 'w2', name: 'Ahmet Demir', pin: '5678', defaultHakedis: 250 }
@@ -31,51 +70,34 @@ export default function App() {
   const [loginPin, setLoginPin] = useState('');
   const [loginType, setLoginType] = useState('admin');
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
-
   const [activeTab, setActiveTab] = useState('jobs'); 
-  
-  const [services, setServices] = useState(() => {
-    const saved = localStorage.getItem('pevuno_services');
-    return saved ? JSON.parse(saved) : DEFAULT_SERVICES;
-  });
+  const [isSynced, setIsSynced] = useState(false);
 
-  // Dinamik Personel Listesi (LocalStorage)
-  const [workers, setWorkers] = useState(() => {
-    const saved = localStorage.getItem('pevuno_workers');
-    return saved ? JSON.parse(saved) : DEFAULT_WORKERS;
-  });
+  const [services, setServices] = useState(DEFAULT_SERVICES);
+  const [workers, setWorkers] = useState(DEFAULT_WORKERS);
+  const [jobs, setJobs] = useState([]);
+  const [expenses, setExpenses] = useState([]);
 
-  const [jobs, setJobs] = useState(() => {
-    const saved = localStorage.getItem('pevuno_jobs');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'JOB-101',
-        customerName: 'Mehmet Öz',
-        companyName: 'Öz İnşaat Ltd.',
-        phone: '05321234567',
-        address: 'Atatürk Mah. Lale Sok. No:5 Pendik / İstanbul',
-        items: [{ serviceId: '1', serviceName: 'Koltuk Yıkama (Standart)', qty: 1, unitPrice: 1200 }],
-        subtotal: 1200,
-        discountType: 'amount',
-        discountValue: 100,
-        totalAmount: 1100,
-        paidAmount: 500,
-        status: 'Yolda / Adreste',
-        date: '2026-10-28',
-        note: 'Hassas şampuan kullanılacak.',
-        assignedWorker: 'Yunus Yıldız',
-        workerHakedis: 300,
-        kvkkApproved: true,
-        paymentMethod: 'Elden (Saha)',
-        completedByWorker: false
-      }
-    ];
-  });
+  // Buluttan Verileri Senkronize Etme
+  useEffect(() => {
+    async function loadCloudData() {
+      const cloudServices = await fetchSupabaseData('services', DEFAULT_SERVICES);
+      const cloudWorkers = await fetchSupabaseData('workers', DEFAULT_WORKERS);
+      const cloudJobs = await fetchSupabaseData('jobs', []);
+      const cloudExpenses = await fetchSupabaseData('expenses', []);
 
-  const [expenses, setExpenses] = useState(() => {
-    const saved = localStorage.getItem('pevuno_expenses');
-    return saved ? JSON.parse(saved) : [];
-  });
+      setServices(cloudServices);
+      setWorkers(cloudWorkers);
+      setJobs(cloudJobs);
+      setExpenses(cloudExpenses);
+      setIsSynced(true);
+    }
+    loadCloudData();
+
+    // Canlı Senkronizasyon (Her 5 saniyede bir buluttan güncellemeleri kontrol et)
+    const interval = setInterval(loadCloudData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Yeni İş Formu
   const [newCustomer, setNewCustomer] = useState({ name: '', company: '', phone: '', address: '', note: '', kvkk: false });
@@ -88,7 +110,7 @@ export default function App() {
   const [assignedWorker, setAssignedWorker] = useState(workers[0]?.name || '');
   const [workerHakedis, setWorkerHakedis] = useState(workers[0]?.defaultHakedis || 300);
 
-  // Yeni Personel Formu State'leri
+  // Yeni Personel Formu
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerPin, setNewWorkerPin] = useState('');
   const [newWorkerHakedis, setNewWorkerHakedis] = useState('');
@@ -96,28 +118,33 @@ export default function App() {
   // Katalog Yeni Hizmet
   const [newService, setNewService] = useState({ name: '', price: '', unit: 'adet' });
   const [editingServiceId, setEditingServiceId] = useState(null);
-
-  // Fiş Modalı
   const [selectedJobForReceipt, setSelectedJobForReceipt] = useState(null);
 
-  // Kayıt İşlemleri
-  useEffect(() => { localStorage.setItem('pevuno_services', JSON.stringify(services)); }, [services]);
-  useEffect(() => { localStorage.setItem('pevuno_workers', JSON.stringify(workers)); }, [workers]);
-  useEffect(() => { localStorage.setItem('pevuno_jobs', JSON.stringify(jobs)); }, [jobs]);
-  useEffect(() => { localStorage.setItem('pevuno_expenses', JSON.stringify(expenses)); }, [expenses]);
   useEffect(() => { localStorage.setItem('pevuno_logged_user', JSON.stringify(currentUser)); }, [currentUser]);
 
-  // Yardımcı: Personel Adını Soyad Baş Harfiyle Yazma
+  // Değişiklikleri Anında Buluta Kaydetme Fonksiyonları
+  const updateServices = (newServ) => {
+    setServices(newServ);
+    saveSupabaseData('services', newServ);
+  };
+
+  const updateWorkers = (newWork) => {
+    setWorkers(newWork);
+    saveSupabaseData('workers', newWork);
+  };
+
+  const updateJobs = (newJbs) => {
+    setJobs(newJbs);
+    saveSupabaseData('jobs', newJbs);
+  };
+
   const formatWorkerNameMasked = (fullName) => {
     if (!fullName) return '';
     const parts = fullName.trim().split(' ');
     if (parts.length < 2) return fullName;
-    const firstName = parts[0];
-    const lastNameInitial = parts[parts.length - 1].charAt(0);
-    return `${firstName} ${lastNameInitial}.`;
+    return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
   };
 
-  // Hesaplamalar
   const subtotal = selectedItems.reduce((acc, item) => acc + (item.qty * item.unitPrice), 0);
   const calculateDiscount = () => {
     if (discountType === 'amount') return Number(discountValue) || 0;
@@ -127,7 +154,6 @@ export default function App() {
   const calculatedDiscount = calculateDiscount();
   const finalTotal = Math.max(0, subtotal - calculatedDiscount);
 
-  // Giriş Yapma Fonksiyonu
   const handleLogin = (e) => {
     e.preventDefault();
     if (loginType === 'admin') {
@@ -146,36 +172,31 @@ export default function App() {
     }
   };
 
-  // Yeni Personel Ekleme
   const handleAddWorker = (e) => {
     e.preventDefault();
     if (!newWorkerName || !newWorkerPin) {
       alert('Lütfen personel adı ve şifresi (PIN) giriniz.');
       return;
     }
-
     const newWObj = {
       id: `w-${Date.now()}`,
       name: newWorkerName,
       pin: newWorkerPin,
       defaultHakedis: Number(newWorkerHakedis) || 300
     };
-
-    setWorkers([...workers, newWObj]);
+    updateWorkers([...workers, newWObj]);
     setNewWorkerName('');
     setNewWorkerPin('');
     setNewWorkerHakedis('');
-    alert('Yeni personel başarıyla eklendi!');
+    alert('Yeni personel başarıyla eklendi ve buluta kaydedildi!');
   };
 
-  // Personel Silme
   const handleDeleteWorker = (workerId) => {
     if (confirm('Bu personeli silmek istediğinize emin misiniz?')) {
-      setWorkers(workers.filter(w => w.id !== workerId));
+      updateWorkers(workers.filter(w => w.id !== workerId));
     }
   };
 
-  // Yeni İş Ekleme
   const handleCreateJob = (e) => {
     e.preventDefault();
     if (!newCustomer.name || !newCustomer.phone || selectedItems.length === 0) {
@@ -205,7 +226,7 @@ export default function App() {
       completedByWorker: false
     };
 
-    setJobs([newJobObj, ...jobs]);
+    updateJobs([newJobObj, ...jobs]);
     setNewCustomer({ name: '', company: '', phone: '', address: '', note: '', kvkk: false });
     setSelectedItems([]);
     setDiscountType('none');
@@ -214,31 +235,27 @@ export default function App() {
     setActiveTab('jobs');
   };
 
-  // İş Silme
   const handleDeleteJob = (jobId) => {
     if (confirm('Bu iş kaydını silmek istediğinize emin misiniz?')) {
-      setJobs(jobs.filter(j => j.id !== jobId));
+      updateJobs(jobs.filter(j => j.id !== jobId));
     }
   };
 
-  // İş Durumu Güncelleme
   const updateJobStatus = (jobId, newStatus) => {
-    setJobs(jobs.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
+    updateJobs(jobs.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
   };
 
-  // Saha Personeli İş Tamamlama ve Ödeme Bildirimi
   const handleWorkerCompleteJob = (jobId, payMethod) => {
-    setJobs(jobs.map(j => j.id === jobId ? { 
+    updateJobs(jobs.map(j => j.id === jobId ? { 
       ...j, 
       status: 'Tamamlandı', 
       completedByWorker: true, 
       paymentMethod: payMethod,
       paidAmount: j.totalAmount 
     } : j));
-    alert('İş başarıyla tamamlandı olarak işaretlendi ve yöneticiye bildirildi!');
+    alert('İş başarıyla tamamlandı olarak işaretlendi!');
   };
 
-  // WhatsApp Mesajı
   const sendWhatsAppMessage = (job) => {
     const remaining = job.totalAmount - job.paidAmount;
     const reviewLink = "https://g.page/r/pevuno-solution/review";
@@ -269,27 +286,24 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
-  // Katalog İşlemleri
   const handleAddOrUpdateService = (e) => {
     e.preventDefault();
     if (!newService.name || !newService.price) return;
     if (editingServiceId) {
-      setServices(services.map(s => s.id === editingServiceId ? { ...s, name: newService.name, price: Number(newService.price), unit: newService.unit } : s));
+      updateServices(services.map(s => s.id === editingServiceId ? { ...s, name: newService.name, price: Number(newService.price), unit: newService.unit } : s));
       setEditingServiceId(null);
     } else {
-      setServices([...services, { id: Date.now().toString(), name: newService.name, price: Number(newService.price), unit: newService.unit }]);
+      updateServices([...services, { id: Date.now().toString(), name: newService.name, price: Number(newService.price), unit: newService.unit }]);
     }
     setNewService({ name: '', price: '', unit: 'adet' });
   };
 
-  // Finans Hesapları
   const totalRevenue = jobs.reduce((acc, j) => acc + j.totalAmount, 0);
   const totalCollected = jobs.reduce((acc, j) => acc + j.paidAmount, 0);
   const totalHakedis = jobs.reduce((acc, j) => acc + (j.workerHakedis || 0), 0);
   const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
   const netProfit = totalCollected - totalExpenses - totalHakedis;
 
-  // Giriş Ekranı
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -299,7 +313,7 @@ export default function App() {
               ✨
             </div>
             <h1 className="text-2xl font-black text-slate-900">PEVUNO SOLUTION</h1>
-            <p className="text-xs text-slate-500">Profesyonel Saha & Müşteri Yönetim Sistemi</p>
+            <p className="text-xs text-slate-500">Bulut Senkronize Saha Yönetimi</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -362,7 +376,6 @@ export default function App() {
     );
   }
 
-  // Ana CRM Arayüzü
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
@@ -370,7 +383,10 @@ export default function App() {
           <div className="flex items-center space-x-3">
             <div className="bg-emerald-500 p-2 rounded-xl text-slate-950 font-bold">✨</div>
             <div>
-              <h1 className="font-extrabold text-lg tracking-tight">PEVUNO SOLUTION</h1>
+              <h1 className="font-extrabold text-lg tracking-tight flex items-center gap-2">
+                PEVUNO SOLUTION 
+                {isSynced ? <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center"><Cloud className="w-3 h-3 mr-1"/> Bulut Aktif</span> : <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Yükleniyor...</span>}
+              </h1>
               <p className="text-xs text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name}</strong></p>
             </div>
           </div>
@@ -611,7 +627,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- YENİ İŞ KAYDI --- */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
@@ -797,13 +812,12 @@ export default function App() {
               </div>
 
               <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition">
-                İş Kaydını Oluştur ve Ata 🚀
+                İş Kaydını Oluştur ve Buluta Gönder 🚀
               </button>
             </form>
           </div>
         )}
 
-        {/* --- PERSONEL YÖNETİMİ PANELİ --- */}
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -811,42 +825,17 @@ export default function App() {
                 <Users className="w-6 h-6 text-emerald-600" />
                 <span>Saha Personeli & Şifre Yönetimi</span>
               </h2>
-              <p className="text-xs text-slate-500">
-                Buradan yeni saha personeli ekleyebilir, giriş şifrelerini (PIN) belirleyebilir ve iş başı hakediş tutarlarını ayarlayabilirsiniz.
-              </p>
 
-              {/* Yeni Personel Ekleme Formu */}
               <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Personel Adı Soyadı" 
-                  value={newWorkerName} 
-                  onChange={(e) => setNewWorkerName(e.target.value)} 
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
-                />
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Giriş Şifresi / PIN (Örn: 1234)" 
-                  value={newWorkerPin} 
-                  onChange={(e) => setNewWorkerPin(e.target.value)} 
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
-                />
-                <input 
-                  type="number" 
-                  placeholder="Varsayılan Hakediş (TL)" 
-                  value={newWorkerHakedis} 
-                  onChange={(e) => setNewWorkerHakedis(e.target.value)} 
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
-                />
+                <input type="text" required placeholder="Personel Adı Soyadı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Giriş Şifresi / PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="number" placeholder="Varsayılan Hakediş (TL)" value={newWorkerHakedis} onChange={(e) => setNewWorkerHakedis(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow flex items-center justify-center space-x-1">
                   <UserPlus className="w-4 h-4 mr-1" />
                   <span>Personel Ekle</span>
                 </button>
               </form>
 
-              {/* Mevcut Personel Listesi */}
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
                 {workers.map((w) => (
                   <div key={w.id} className="p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition">
@@ -854,11 +843,7 @@ export default function App() {
                       <h4 className="font-bold text-slate-800 text-sm">{w.name}</h4>
                       <span className="text-xs text-slate-400 font-mono">Giriş PIN: {w.pin} | Hakediş: {w.defaultHakedis} TL</span>
                     </div>
-                    <button 
-                      onClick={() => handleDeleteWorker(w.id)} 
-                      className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                      title="Personeli Sil"
-                    >
+                    <button onClick={() => handleDeleteWorker(w.id)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -868,7 +853,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- FİYAT KATALOĞU --- */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -902,7 +886,7 @@ export default function App() {
                     <div className="flex items-center space-x-4">
                       <span className="font-extrabold text-slate-900">{srv.price} TL</span>
                       <button onClick={() => { setEditingServiceId(srv.id); setNewService({ name: srv.name, price: srv.price, unit: srv.unit }); }} className="p-2 text-slate-500 hover:text-emerald-600"><Edit3 className="w-4 h-4" /></button>
-                      <button onClick={() => setServices(services.filter(s => s.id !== srv.id))} className="p-2 text-slate-500 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => updateServices(services.filter(s => s.id !== srv.id))} className="p-2 text-slate-500 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -911,7 +895,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- KVKK & HATIRLATICILAR --- */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-4 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
@@ -919,11 +902,7 @@ export default function App() {
                 <RefreshCw className="w-6 h-6 text-emerald-600" />
                 <span>KVKK Onaylı Periyodik Hatırlatıcılar</span>
               </h2>
-              <p className="text-xs text-slate-500">
-                Sadece KVKK onay kutusu işaretlenmiş müşteriler yasal olarak toplu kampanya veya 6 aylık temizlik hatırlatmasına dahil edilir.
-              </p>
             </div>
-
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
               <h3 className="font-bold text-slate-800 text-sm mb-3">KVKK Onayı Veren Müşteriler ({jobs.filter(j => j.kvkkApproved).length})</h3>
               <div className="space-y-2">
@@ -943,7 +922,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- KASA & HAKEDİŞ --- */}
         {activeTab === 'finance' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -968,7 +946,6 @@ export default function App() {
         )}
       </main>
 
-      {/* --- SERVİS FİŞİ MODALI --- */}
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6">
