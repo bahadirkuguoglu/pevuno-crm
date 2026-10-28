@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
@@ -29,7 +29,6 @@ async function fetchSupabaseData(key, defaultVal) {
 
 async function saveSupabaseData(key, value) {
   try {
-    // Önce eski veriyi temizle, ardından güncel veriyi kaydet (Silinme ve geri gelme sorununu çözer)
     await fetch(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}`, {
       method: 'DELETE',
       headers: {
@@ -85,41 +84,76 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [isSynced, setIsSynced] = useState(false);
 
-  const [services, setServices] = useState(DEFAULT_SERVICES);
-  const [workers, setWorkers] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [kvkkTemplate, setKvkkTemplate] = useState(DEFAULT_KVKK_TEMPLATE);
-  const [tempKvkkInput, setTempKvkkInput] = useState(DEFAULT_KVKK_TEMPLATE);
+  // Yerel Hafıza (LocalStorage) Destekli State Yönetimi (Asla kaybolma/geri gelme olmaz)
+  const [services, setServices] = useState(() => {
+    const saved = localStorage.getItem('pevuno_services');
+    return saved ? JSON.parse(saved) : DEFAULT_SERVICES;
+  });
 
-  const isSavingRef = useRef(false);
+  const [workers, setWorkers] = useState(() => {
+    const saved = localStorage.getItem('pevuno_workers');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // Bulut Verilerini Senkronize Etme
+  const [jobs, setJobs] = useState(() => {
+    const saved = localStorage.getItem('pevuno_jobs');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [customers, setCustomers] = useState(() => {
+    const saved = localStorage.getItem('pevuno_customers');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [expenses, setExpenses] = useState(() => {
+    const saved = localStorage.getItem('pevuno_expenses');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [kvkkTemplate, setKvkkTemplate] = useState(() => {
+    const saved = localStorage.getItem('pevuno_kvkk');
+    return saved ? saved : DEFAULT_KVKK_TEMPLATE;
+  });
+
+  const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
+
+  // İlk Açılışta Buluttan Veri Çekme (Sadece eksikse veya ilk yüklemede)
   useEffect(() => {
     async function initCloudData() {
-      if (isSavingRef.current) return;
+      const cloudServices = await fetchSupabaseData('services', null);
+      if (cloudServices && cloudServices.length > 0) {
+        setServices(cloudServices);
+        localStorage.setItem('pevuno_services', JSON.stringify(cloudServices));
+      }
 
-      const cloudServices = await fetchSupabaseData('services', DEFAULT_SERVICES);
-      const cloudWorkers = await fetchSupabaseData('workers', []);
-      const cloudJobs = await fetchSupabaseData('jobs', []);
-      const cloudCustomers = await fetchSupabaseData('customers', []);
-      const cloudExpenses = await fetchSupabaseData('expenses', []);
-      const cloudKvkk = await fetchSupabaseData('kvkk_template', DEFAULT_KVKK_TEMPLATE);
+      const cloudWorkers = await fetchSupabaseData('workers', null);
+      if (cloudWorkers) {
+        setWorkers(cloudWorkers);
+        localStorage.setItem('pevuno_workers', JSON.stringify(cloudWorkers));
+      }
 
-      setServices(cloudServices);
-      setWorkers(cloudWorkers);
-      setJobs(cloudJobs);
-      setCustomers(cloudCustomers);
-      setExpenses(cloudExpenses);
-      setKvkkTemplate(cloudKvkk);
-      setTempKvkkInput(cloudKvkk);
+      const cloudJobs = await fetchSupabaseData('jobs', null);
+      if (cloudJobs) {
+        setJobs(cloudJobs);
+        localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs));
+      }
+
+      const cloudCustomers = await fetchSupabaseData('customers', null);
+      if (cloudCustomers) {
+        setCustomers(cloudCustomers);
+        localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers));
+      }
+
+      const cloudKvkk = await fetchSupabaseData('kvkk_template', null);
+      if (cloudKvkk) {
+        setKvkkTemplate(cloudKvkk);
+        setTempKvkkInput(cloudKvkk);
+        localStorage.setItem('pevuno_kvkk', cloudKvkk);
+      }
+
       setIsSynced(true);
     }
     initCloudData();
-
-    const interval = setInterval(initCloudData, 6000);
-    return () => clearInterval(interval);
   }, []);
 
   const [selectedExistingCustomer, setSelectedExistingCustomer] = useState('');
@@ -155,25 +189,24 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('pevuno_logged_user', JSON.stringify(currentUser)); }, [currentUser]);
 
-  const commitChange = async (key, newValue, setter) => {
-    isSavingRef.current = true;
+  // Anında Yerel Kayıt + Bulut Senkronizasyonu
+  const commitChange = async (key, newValue, setter, storageKey) => {
     setter(newValue);
+    localStorage.setItem(storageKey, JSON.stringify(newValue));
     await saveSupabaseData(key, newValue);
-    setTimeout(() => {
-      isSavingRef.current = false;
-    }, 2000);
   };
 
-  const updateServices = (newServ) => commitChange('services', newServ, setServices);
-  const updateWorkers = (newWork) => commitChange('workers', newWork, setWorkers);
-  const updateJobs = (newJbs) => commitChange('jobs', newJbs, setJobs);
-  const updateCustomers = (newCust) => commitChange('customers', newCust, setCustomers);
+  const updateServices = (newServ) => commitChange('services', newServ, setServices, 'pevuno_services');
+  const updateWorkers = (newWork) => commitChange('workers', newWork, setWorkers, 'pevuno_workers');
+  const updateJobs = (newJbs) => commitChange('jobs', newJbs, setJobs, 'pevuno_jobs');
+  const updateCustomers = (newCust) => commitChange('customers', newCust, setCustomers, 'pevuno_customers');
 
   const handleSaveKvkkTemplate = async (e) => {
     e.preventDefault();
     setKvkkTemplate(tempKvkkInput);
+    localStorage.setItem('pevuno_kvkk', tempKvkkInput);
     await saveSupabaseData('kvkk_template', tempKvkkInput);
-    alert('KVKK Mesaj Şablonu başarıyla güncellendi ve buluta kaydedildi!');
+    alert('KVKK Mesaj Şablonu başarıyla güncellendi!');
   };
 
   const toggleCustomerKvkkStatus = (custId) => {
@@ -235,7 +268,7 @@ export default function App() {
     setNewWorkerName('');
     setNewWorkerPin('');
     setNewWorkerPhone('');
-    alert('Yeni personel eklendi ve buluta kaydedildi!');
+    alert('Yeni personel başarıyla eklendi!');
   };
 
   const handleDeleteWorker = (workerId) => {
@@ -541,7 +574,7 @@ export default function App() {
             <div>
               <h1 className="font-extrabold text-lg tracking-tight flex items-center gap-2">
                 PEVUNO SOLUTION 
-                {isSynced ? <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center"><Cloud className="w-3 h-3 mr-1"/> Bulut Aktif</span> : <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Yükleniyor...</span>}
+                {isSynced ? <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center"><Cloud className="w-3 h-3 mr-1"/> Hazır</span> : <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Yükleniyor...</span>}
               </h1>
               <p className="text-xs text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name}</strong></p>
             </div>
@@ -1175,7 +1208,7 @@ export default function App() {
                 <ShieldCheck className="w-6 h-6 text-emerald-600" />
                 <span>WhatsApp KVKK & Onay Mesajı Şablonu Düzenle</span>
               </h2>
-              <p className="text-xs text-slate-500">Müşterilere gönderilen onay mesajını buradan dilediğin zaman değiştirebilir ve buluta kaydedebilirsin. ([Müşteri Adı] yazan yer otomatik olarak müşterinin adıyla değiştirilir).</p>
+              <p className="text-xs text-slate-500">Müşterilere gönderilen onay mesajını buradan dilediğin zaman değiştirebilirsin. ([Müşteri Adı] yazan yer otomatik olarak müşterinin adıyla değiştirilir).</p>
 
               <form onSubmit={handleSaveKvkkTemplate} className="space-y-3">
                 <textarea 
