@@ -2,15 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
-  MessageSquare, DollarSign, Edit3, Trash2, Camera, 
-  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, CloudOff
+  MessageSquare, DollarSign, Edit3, Trash2, 
+  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send
 } from 'lucide-react';
 
-// Supabase Bağlantı Bilgileri
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_506jwPoEvILEU07Xad7zEA_ywR6FixZ";
 
-// Supabase Veri Çekme ve Kaydetme Fonksiyonları
 async function fetchSupabaseData(key, defaultVal) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}`, {
@@ -20,9 +18,7 @@ async function fetchSupabaseData(key, defaultVal) {
       }
     });
     const data = await res.json();
-    if (data && data.length > 0) {
-      return data[0].value;
-    }
+    if (data && data.length > 0) return data[0].value;
     return defaultVal;
   } catch (err) {
     console.error("Supabase okuma hatası:", err);
@@ -76,73 +72,72 @@ export default function App() {
   const [services, setServices] = useState(DEFAULT_SERVICES);
   const [workers, setWorkers] = useState(DEFAULT_WORKERS);
   const [jobs, setJobs] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [expenses, setExpenses] = useState([]);
 
-  // Buluttan Verileri Senkronize Etme
   useEffect(() => {
     async function loadCloudData() {
       const cloudServices = await fetchSupabaseData('services', DEFAULT_SERVICES);
       const cloudWorkers = await fetchSupabaseData('workers', DEFAULT_WORKERS);
       const cloudJobs = await fetchSupabaseData('jobs', []);
+      const cloudCustomers = await fetchSupabaseData('customers', []);
       const cloudExpenses = await fetchSupabaseData('expenses', []);
 
       setServices(cloudServices);
       setWorkers(cloudWorkers);
       setJobs(cloudJobs);
+      setCustomers(cloudCustomers);
       setExpenses(cloudExpenses);
       setIsSynced(true);
     }
     loadCloudData();
-
-    // Canlı Senkronizasyon (Her 5 saniyede bir buluttan güncellemeleri kontrol et)
     const interval = setInterval(loadCloudData, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Yeni İş Formu
-  const [newCustomer, setNewCustomer] = useState({ name: '', company: '', phone: '', address: '', note: '', kvkk: false });
+  // Yeni İş Formu State'leri
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCompany, setNewCompany] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newNote, setNewNote] = useState('');
+  const [kvkkChecked, setKvkkChecked] = useState(false);
+
   const [selectedItems, setSelectedItems] = useState([]);
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
   const [jobDate, setJobDate] = useState(new Date().toISOString().split('T')[0]);
+  const [jobTime, setJobTime] = useState('10:00');
   
-  const [assignedWorker, setAssignedWorker] = useState(workers[0]?.name || '');
-  const [workerHakedis, setWorkerHakedis] = useState(workers[0]?.defaultHakedis || 300);
+  // Çoklu Personel Atama
+  const [selectedWorkers, setSelectedWorkers] = useState([]);
+  const [workerHakedis, setWorkerHakedis] = useState(300);
 
   // Yeni Personel Formu
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerPin, setNewWorkerPin] = useState('');
   const [newWorkerHakedis, setNewWorkerHakedis] = useState('');
 
-  // Katalog Yeni Hizmet
+  // Katalog & Fiş
   const [newService, setNewService] = useState({ name: '', price: '', unit: 'adet' });
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [selectedJobForReceipt, setSelectedJobForReceipt] = useState(null);
 
   useEffect(() => { localStorage.setItem('pevuno_logged_user', JSON.stringify(currentUser)); }, [currentUser]);
 
-  // Değişiklikleri Anında Buluta Kaydetme Fonksiyonları
-  const updateServices = (newServ) => {
-    setServices(newServ);
-    saveSupabaseData('services', newServ);
-  };
+  const updateServices = (newServ) => { setServices(newServ); saveSupabaseData('services', newServ); };
+  const updateWorkers = (newWork) => { setWorkers(newWork); saveSupabaseData('workers', newWork); };
+  const updateJobs = (newJbs) => { setJobs(newJbs); saveSupabaseData('jobs', newJbs); };
+  const updateCustomers = (newCust) => { setCustomers(newCust); saveSupabaseData('customers', newCust); };
 
-  const updateWorkers = (newWork) => {
-    setWorkers(newWork);
-    saveSupabaseData('workers', newWork);
-  };
-
-  const updateJobs = (newJbs) => {
-    setJobs(newJbs);
-    saveSupabaseData('jobs', newJbs);
-  };
-
-  const formatWorkerNameMasked = (fullName) => {
-    if (!fullName) return '';
-    const parts = fullName.trim().split(' ');
-    if (parts.length < 2) return fullName;
-    return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
+  const formatWorkerNameMasked = (workerList) => {
+    if (!workerList || workerList.length === 0) return 'Ekip';
+    return workerList.map(w => {
+      const parts = w.trim().split(' ');
+      if (parts.length < 2) return w;
+      return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
+    }).join(', ');
   };
 
   const subtotal = selectedItems.reduce((acc, item) => acc + (item.qty * item.unitPrice), 0);
@@ -160,7 +155,7 @@ export default function App() {
       if (loginPin === '1453' || loginPin === 'admin') {
         setCurrentUser({ role: 'admin', name: 'Bahadır (Yönetici)' });
       } else {
-        alert('Hatalı Yönetici Şifresi! (Şifre: 1453)');
+        alert('Hataly Yönetici Şifresi! (Şifre: 1453)');
       }
     } else {
       const worker = workers.find(w => w.id === selectedWorkerId);
@@ -188,7 +183,7 @@ export default function App() {
     setNewWorkerName('');
     setNewWorkerPin('');
     setNewWorkerHakedis('');
-    alert('Yeni personel başarıyla eklendi ve buluta kaydedildi!');
+    alert('Yeni personel başarıyla eklendi!');
   };
 
   const handleDeleteWorker = (workerId) => {
@@ -199,18 +194,18 @@ export default function App() {
 
   const handleCreateJob = (e) => {
     e.preventDefault();
-    if (!newCustomer.name || !newCustomer.phone || selectedItems.length === 0) {
+    if (!newCustomerName || !newCustomerPhone || selectedItems.length === 0) {
       alert('Lütfen müşteri adı, telefon ve en az 1 hizmet seçiniz.');
       return;
     }
 
     const newJobObj = {
       id: `JOB-${Math.floor(1000 + Math.random() * 9000)}`,
-      customerName: newCustomer.name,
-      companyName: newCustomer.company,
-      phone: newCustomer.phone,
-      address: newCustomer.address,
-      note: newCustomer.note,
+      customerName: newCustomerName,
+      companyName: newCompany,
+      phone: newCustomerPhone,
+      address: newAddress,
+      note: newNote,
       items: selectedItems,
       subtotal,
       discountType,
@@ -219,15 +214,43 @@ export default function App() {
       paidAmount: Number(paidAmount) || 0,
       status: 'Sırada / Randevu',
       date: jobDate,
-      assignedWorker: assignedWorker || workers[0]?.name || 'Saha Ekibi',
+      time: jobTime,
+      assignedWorkers: selectedWorkers.length > 0 ? selectedWorkers : [workers[0]?.name || 'Saha Ekibi'],
       workerHakedis: Number(workerHakedis) || 300,
-      kvkkApproved: newCustomer.kvkk,
+      kvkkApproved: kvkkChecked,
       paymentMethod: 'Elden (Saha)',
       completedByWorker: false
     };
 
     updateJobs([newJobObj, ...jobs]);
-    setNewCustomer({ name: '', company: '', phone: '', address: '', note: '', kvkk: false });
+
+    // Müşteri listesine ekle / güncelle (Çoklu adres desteği)
+    const existingCustIndex = customers.findIndex(c => c.phone === newCustomerPhone);
+    if (existingCustIndex > -1) {
+      const cust = customers[existingCustIndex];
+      const updatedAddresses = cust.addresses.includes(newAddress) ? cust.addresses : [...cust.addresses, newAddress];
+      const updatedCusts = [...customers];
+      updatedCusts[existingCustIndex] = { ...cust, addresses: updatedAddresses, lastJobDate: jobDate };
+      updateCustomers(updatedCusts);
+    } else {
+      const newCustObj = {
+        id: `CUST-${Date.now()}`,
+        name: newCustomerName,
+        phone: newCustomerPhone,
+        company: newCompany,
+        addresses: [newAddress],
+        kvkk: kvkkChecked,
+        lastJobDate: jobDate
+      };
+      updateCustomers([...customers, newCustObj]);
+    }
+
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    setNewCompany('');
+    setNewAddress('');
+    setNewNote('');
+    setKvkkChecked(false);
     setSelectedItems([]);
     setDiscountType('none');
     setDiscountValue(0);
@@ -253,17 +276,33 @@ export default function App() {
       paymentMethod: payMethod,
       paidAmount: j.totalAmount 
     } : j));
-    alert('İş başarıyla tamamlandı olarak işaretlendi!');
+    alert('İş tamamlandı ve yöneticiye bildirildi!');
   };
 
-  const sendWhatsAppMessage = (job) => {
+  // WhatsApp Business Mesajı 1: Yola Çıkıldı
+  const sendWhatsAppOnTheWay = (job) => {
+    const assignedText = formatWorkerNameMasked(job.assignedWorkers);
+    let msg = `Merhaba *${job.customerName}*,\n\n`;
+    msg += `🚗 *PEVUNO SOLUTION* ekibimiz (*${assignedText}*) adresinize doğru yola çıkmıştır.\n`;
+    msg += `📍 *Adres:* ${job.address}\n`;
+    msg += `⏰ *Planlanan Saat:* ${job.time || 'Belirtilmedi'}\n\n`;
+    msg += `Hazırlıklarımız tamamlanmak üzere. Görüşmek üzere! 🧼✨`;
+
+    const encoded = encodeURIComponent(msg);
+    const cleanPhone = job.phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
+    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
+  };
+
+  // WhatsApp Business Mesajı 2: Servis Tamamlandı (Müşteri hakedişi asla görmez)
+  const sendWhatsAppCompletion = (job) => {
     const remaining = job.totalAmount - job.paidAmount;
     const reviewLink = "https://g.page/r/pevuno-solution/review";
-    const maskedWorker = formatWorkerNameMasked(job.assignedWorker);
+    const assignedText = formatWorkerNameMasked(job.assignedWorkers);
     
     let msg = `Merhaba *${job.customerName}*,\n\n`;
-    msg += `✨ *PEVUNO SOLUTION* profesyonel temizlik hizmetimiz tamamlanmıştır.\n`;
-    msg += `👷 Sizi ziyaret eden ekibimiz: *${maskedWorker}*\n\n`;
+    msg += `✨ *PEVUNO SOLUTION* profesyonel temizlik hizmetimiz başarıyla tamamlanmıştır.\n`;
+    msg += `👷 Hizmet veren ekibimiz: *${assignedText}*\n\n`;
     msg += `📋 *Yapılan İşlemler:*\n`;
     job.items.forEach(i => {
       msg += `• ${i.serviceName} (${i.qty} ${services.find(s=>s.id===i.serviceId)?.unit || 'adet'})\n`;
@@ -282,7 +321,19 @@ export default function App() {
     const encoded = encodeURIComponent(msg);
     const cleanPhone = job.phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
-    
+    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
+  };
+
+  // 6 Ay Sonra Hatırlatma Gönderme (KVKK Onaylı)
+  const sendSixMonthReminder = (cust) => {
+    let msg = `Merhaba *${cust.name}*,\n\n`;
+    msg += `🌿 *PEVUNO SOLUTION* ailesi olarak sağlıklı ve hijyenik günler dileriz.\n`;
+    msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden yaklaşık 6 ay geçti. Sağlığınız ve evinizin hijyeni için periyodik koltuk ve kumaş yıkama zamanınız yaklaşmıştır.\n\n`;
+    msg += `Size özel randevu oluşturmamızı ister misiniz? 🧼✨`;
+
+    const encoded = encodeURIComponent(msg);
+    const cleanPhone = cust.phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
@@ -309,67 +360,33 @@ export default function App() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
           <div className="text-center space-y-2">
-            <div className="bg-emerald-500 w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg">
-              ✨
-            </div>
+            <div className="bg-emerald-500 w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg">✨</div>
             <h1 className="text-2xl font-black text-slate-900">PEVUNO SOLUTION</h1>
             <p className="text-xs text-slate-500">Bulut Senkronize Saha Yönetimi</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setLoginType('admin')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginType === 'admin' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
-              >
-                👑 Yönetici Girişi
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginType('worker')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginType === 'worker' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}
-              >
-                👷 Saha Personeli
-              </button>
+              <button type="button" onClick={() => setLoginType('admin')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginType === 'admin' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>👑 Yönetici Girişi</button>
+              <button type="button" onClick={() => setLoginType('worker')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginType === 'worker' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>👷 Saha Personeli</button>
             </div>
 
             {loginType === 'worker' && (
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Personel Seçiniz</label>
-                <select
-                  value={selectedWorkerId}
-                  onChange={(e) => setSelectedWorkerId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-slate-50"
-                >
+                <select value={selectedWorkerId} onChange={(e) => setSelectedWorkerId(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-slate-50">
                   <option value="">Personel Seçin...</option>
-                  {workers.map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
+                  {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
-                {loginType === 'admin' ? 'Yönetici Şifresi (1453)' : 'Personel Şifresi (PIN)'}
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="Şifrenizi girin..."
-                value={loginPin}
-                onChange={(e) => setLoginPin(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500"
-              />
+              <label className="block text-xs font-bold text-slate-600 mb-1">{loginType === 'admin' ? 'Yönetici Şifresi (1453)' : 'Personel Şifresi (PIN)'}</label>
+              <input type="password" required placeholder="Şifrenizi girin..." value={loginPin} onChange={(e) => setLoginPin(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500" />
             </div>
 
-            <button
-              type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition"
-            >
-              Sisteme Giriş Yap 🚀
-            </button>
+            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition">Sisteme Giriş Yap 🚀</button>
           </form>
         </div>
       </div>
@@ -391,10 +408,7 @@ export default function App() {
             </div>
           </div>
 
-          <button
-            onClick={() => setCurrentUser(null)}
-            className="bg-slate-800 hover:bg-rose-900/40 text-slate-300 text-xs px-3 py-2 rounded-xl border border-slate-700 flex items-center space-x-1.5 transition"
-          >
+          <button onClick={() => setCurrentUser(null)} className="bg-slate-800 hover:bg-rose-900/40 text-slate-300 text-xs px-3 py-2 rounded-xl border border-slate-700 flex items-center space-x-1.5 transition">
             <LogOut className="w-4 h-4" />
             <span>Çıkış Yap</span>
           </button>
@@ -402,52 +416,39 @@ export default function App() {
 
         <div className="bg-slate-800 border-t border-slate-700">
           <div className="max-w-6xl mx-auto px-4 flex space-x-1 overflow-x-auto text-sm">
-            <button
-              onClick={() => setActiveTab('jobs')}
-              className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-            >
+            <button onClick={() => setActiveTab('jobs')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
               <ShoppingBag className="w-4 h-4" />
-              <span>İş Listesi ({currentUser.role === 'worker' ? jobs.filter(j => j.assignedWorker === currentUser.name).length : jobs.length})</span>
+              <span>İş Listesi ({currentUser.role === 'worker' ? jobs.filter(j => j.assignedWorkers?.includes(currentUser.name)).length : jobs.length})</span>
             </button>
 
             {currentUser.role === 'admin' && (
               <>
-                <button
-                  onClick={() => setActiveTab('new-job')}
-                  className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'new-job' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
+                <button onClick={() => setActiveTab('new-job')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'new-job' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <PlusCircle className="w-4 h-4" />
                   <span>Yeni İş Kaydı</span>
                 </button>
 
-                <button
-                  onClick={() => setActiveTab('workers')}
-                  className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'workers' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
+                <button onClick={() => setActiveTab('customers')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'customers' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <BookOpen className="w-4 h-4" />
+                  <span>Müşteri Listesi</span>
+                </button>
+
+                <button onClick={() => setActiveTab('workers')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'workers' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <Users className="w-4 h-4" />
                   <span>Personel Yönetimi</span>
                 </button>
 
-                <button
-                  onClick={() => setActiveTab('catalog')}
-                  className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'catalog' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
+                <button onClick={() => setActiveTab('catalog')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'catalog' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <Settings className="w-4 h-4" />
                   <span>Fiyat Kataloğu</span>
                 </button>
 
-                <button
-                  onClick={() => setActiveTab('reminders')}
-                  className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'reminders' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
+                <button onClick={() => setActiveTab('reminders')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'reminders' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <RefreshCw className="w-4 h-4" />
-                  <span>KVKK & Hatırlatıcılar</span>
+                  <span>KVKK & 6 Ay Hatırlatıcı</span>
                 </button>
 
-                <button
-                  onClick={() => setActiveTab('finance')}
-                  className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'finance' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-                >
+                <button onClick={() => setActiveTab('finance')} className={`px-4 py-3 flex items-center space-x-2 border-b-2 font-medium whitespace-nowrap ${activeTab === 'finance' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <TrendingUp className="w-4 h-4" />
                   <span>Kasa & Hakediş</span>
                 </button>
@@ -461,14 +462,9 @@ export default function App() {
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-slate-900">
-                {currentUser.role === 'admin' ? 'Tüm Saha İşleri ve Müşteriler' : 'Bana Atanan İşler'}
-              </h2>
+              <h2 className="text-xl font-bold text-slate-900">{currentUser.role === 'admin' ? 'Tüm Saha İşleri ve Randevular' : 'Bana Atanan İşler'}</h2>
               {currentUser.role === 'admin' && (
-                <button
-                  onClick={() => setActiveTab('new-job')}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl flex items-center space-x-2 shadow"
-                >
+                <button onClick={() => setActiveTab('new-job')} className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl flex items-center space-x-2 shadow">
                   <PlusCircle className="w-4 h-4" />
                   <span>Yeni İş Ekle</span>
                 </button>
@@ -477,16 +473,19 @@ export default function App() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {jobs
-                .filter(j => currentUser.role === 'admin' || j.assignedWorker === currentUser.name)
+                .filter(j => currentUser.role === 'admin' || j.assignedWorkers?.includes(currentUser.name))
                 .map((job) => (
                 <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4 hover:shadow-md transition">
                   <div className="flex justify-between items-start border-b border-slate-100 pb-3">
                     <div>
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">{job.id}</span>
+                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-200">
+                          📅 {job.date} | ⏰ {job.time || '10:00'}
+                        </span>
                         {job.kvkkApproved && (
                           <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold border border-emerald-200 flex items-center">
-                            <ShieldCheck className="w-3 h-3 mr-1" /> KVKK Onaylı
+                            <ShieldCheck className="w-3 h-3 mr-1" /> KVKK
                           </span>
                         )}
                       </div>
@@ -512,11 +511,7 @@ export default function App() {
                       </select>
 
                       {currentUser.role === 'admin' && (
-                        <button
-                          onClick={() => handleDeleteJob(job.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1"
-                          title="İşi Sil"
-                        >
+                        <button onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1" title="İşi Sil">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
@@ -529,12 +524,7 @@ export default function App() {
                         <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                         <span>{job.address}</span>
                       </div>
-                      <a
-                        href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="bg-white border border-slate-200 text-xs font-semibold px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 shrink-0 shadow-sm"
-                      >
+                      <a href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer" className="bg-white border border-slate-200 text-xs font-semibold px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 shrink-0 shadow-sm">
                         Yol Tarifi
                       </a>
                     </div>
@@ -545,7 +535,7 @@ export default function App() {
                         <a href={`tel:${job.phone}`} className="hover:underline font-mono">{job.phone}</a>
                       </div>
                       <div className="bg-slate-200/70 px-2 py-0.5 rounded font-medium">
-                        👷 Giden: <strong>{formatWorkerNameMasked(job.assignedWorker)}</strong>
+                        👷 Giden Ekip: <strong>{formatWorkerNameMasked(job.assignedWorkers)}</strong>
                       </div>
                     </div>
 
@@ -588,36 +578,26 @@ export default function App() {
                     <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-2">
                       <p className="text-xs font-bold text-emerald-900">İş bitti mi? Ödemeyi nasıl aldınız?</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => handleWorkerCompleteJob(job.id, 'Elden (Saha)')}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg shadow"
-                        >
-                          💵 Elden Aldım (Bitti)
-                        </button>
-                        <button
-                          onClick={() => handleWorkerCompleteJob(job.id, 'IBAN (Yönetici)')}
-                          className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg shadow"
-                        >
-                          🏦 IBAN'a Atıldı (Bitti)
-                        </button>
+                        <button onClick={() => handleWorkerCompleteJob(job.id, 'Elden (Saha)')} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">💵 Elden Aldım</button>
+                        <button onClick={() => handleWorkerCompleteJob(job.id, 'IBAN (Yönetici)')} className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">🏦 IBAN'a Atıldı</button>
                       </div>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2 pt-2">
-                    <button
-                      onClick={() => sendWhatsAppMessage(job)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      <span>WP Mesajı (Maskeli)</span>
+                  {/* WhatsApp Business Butonları (Yola Çıkıldı & Servis Bitti) */}
+                  <div className="grid grid-cols-3 gap-1.5 pt-2">
+                    <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                      <Send className="w-3 h-3" />
+                      <span>Yola Çıkıldı</span>
                     </button>
 
-                    <button
-                      onClick={() => setSelectedJobForReceipt(job)}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center space-x-1.5 border border-slate-200 transition"
-                    >
-                      <FileText className="w-4 h-4" />
+                    <button onClick={() => sendWhatsAppCompletion(job)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                      <MessageSquare className="w-3 h-3" />
+                      <span>Servis Bitti</span>
+                    </button>
+
+                    <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] py-2 px-2 rounded-xl flex items-center justify-center space-x-1 border border-slate-200 transition">
+                      <FileText className="w-3 h-3" />
                       <span>Servis Fişi</span>
                     </button>
                   </div>
@@ -631,74 +611,49 @@ export default function App() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
               <PlusCircle className="w-6 h-6 text-emerald-600" />
-              <span>Yeni Müşteri & İş Kaydı Oluştur</span>
+              <span>Yeni Müşteri & İş Randevusu Oluştur</span>
             </h2>
 
             <form onSubmit={handleCreateJob} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Müşteri Adı Soyadı *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Örn: Mehmet Öz"
-                    value={newCustomer.name}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm"
-                  />
+                  <input type="text" required placeholder="Örn: Mehmet Öz" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Firma / Kurum Adı (Opsiyonel)</label>
-                  <input
-                    type="text"
-                    placeholder="Örn: Öz İnşaat A.Ş."
-                    value={newCustomer.company}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm"
-                  />
+                  <input type="text" placeholder="Örn: Öz İnşaat A.Ş." value={newCompany} onChange={(e) => setNewCompany(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Telefon Numarası *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Örn: 05321234567"
-                    value={newCustomer.phone}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm"
-                  />
+                  <input type="text" required placeholder="Örn: 05321234567" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Saha Personeli Ata *</label>
-                  <select
-                    value={assignedWorker}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setAssignedWorker(name);
-                      const wObj = workers.find(w => w.name === name);
-                      if (wObj) setWorkerHakedis(wObj.defaultHakedis);
-                    }}
-                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-white"
-                  >
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller (Birden Fazla Seçebilirsin) *</label>
+                  <div className="border border-slate-300 rounded-xl p-2.5 bg-white space-y-1.5 max-h-36 overflow-y-auto">
                     {workers.map(w => (
-                      <option key={w.id} value={w.name}>{w.name}</option>
+                      <label key={w.id} className="flex items-center space-x-2 text-xs font-medium cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedWorkers.includes(w.name)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedWorkers([...selectedWorkers, w.name]);
+                            else setSelectedWorkers(selectedWorkers.filter(name => name !== w.name));
+                          }}
+                          className="w-4 h-4 text-emerald-600 rounded"
+                        />
+                        <span>{w.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Açık Adres *</label>
-                  <textarea
-                    rows={2}
-                    required
-                    placeholder="İlçe, Mahalle, Cadde, Sokak, Bina No, Daire..."
-                    value={newCustomer.address}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
-                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm"
-                  />
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Açık Adres (Ev/İş Farklı Adresleri Kaydedebilirsiniz) *</label>
+                  <textarea rows={2} required placeholder="İlçe, Mahalle, Cadde, Sokak, Bina No, Daire..." value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
               </div>
 
@@ -787,34 +742,81 @@ export default function App() {
 
               <div className="space-y-3">
                 <div className="flex items-center space-x-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                  <input
-                    type="checkbox"
-                    id="kvkkCheck"
-                    checked={newCustomer.kvkk}
-                    onChange={(e) => setNewCustomer({ ...newCustomer, kvkk: e.target.checked })}
-                    className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
-                  />
+                  <input type="checkbox" id="kvkkCheck" checked={kvkkChecked} onChange={(e) => setKvkkChecked(e.target.checked)} className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer" />
                   <label htmlFor="kvkkCheck" className="text-xs text-slate-700 cursor-pointer">
-                    Müşteriye KVKK Aydınlatma Metni gönderildi ve onay alındı (Periyodik hatırlatmalar için zorunludur).
+                    Müşteriye KVKK Aydınlatma Metni gönderildi ve onay alındı (6 ayda bir hatırlatıcı için zorunludur).
                   </label>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1">Randevu Tarihi</label>
                     <input type="date" value={jobDate} onChange={(e) => setJobDate(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                   </div>
                   <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Randevu Saati</label>
+                    <input type="time" value={jobTime} onChange={(e) => setJobTime(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
+                  </div>
+                  <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1">Özel Saha Notu</label>
-                    <input type="text" placeholder="Örn: Evde kedi var..." value={newCustomer.note} onChange={(e) => setNewCustomer({ ...newCustomer, note: e.target.value })} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
+                    <input type="text" placeholder="Örn: Evde kedi var..." value={newNote} onChange={(e) => setNewNote(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                   </div>
                 </div>
               </div>
 
-              <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition">
-                İş Kaydını Oluştur ve Buluta Gönder 🚀
-              </button>
+              <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition">İş Randevusunu Oluştur ve Kaydet 🚀</button>
             </form>
+          </div>
+        )}
+
+        {/* --- MÜŞTERİ LİSTESİ & ÇOKLU ADRES --- */}
+        {activeTab === 'customers' && currentUser.role === 'admin' && (
+          <div className="space-y-4 max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                <BookOpen className="w-6 h-6 text-emerald-600" />
+                <span>Müşteri Veri Tabanı & Çoklu Adres Yönetimi</span>
+              </h2>
+              <p className="text-xs text-slate-500">Burada kayıtlı tüm müşterileriniz, telefon numaraları ve ev/iş gibi farklı adres geçmişleri listelenir.</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {customers.map((cust) => (
+                <div key={cust.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-base text-slate-900">{cust.name} {cust.company && <span className="text-xs text-slate-500">({cust.company})</span>}</h3>
+                      <p className="text-xs text-emerald-600 font-mono mt-0.5">📞 {cust.phone}</p>
+                    </div>
+                    {cust.kvkk && (
+                      <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-bold border border-emerald-200">
+                        🛡️ KVKK Onaylı
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kayıtlı Adresler ({cust.addresses.length}):</p>
+                    {cust.addresses.map((addr, idx) => (
+                      <p key={idx} className="text-xs text-slate-700 flex items-start space-x-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>{addr}</span>
+                      </p>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
+                    <span className="text-slate-400">Son İşlem Tarihi: {cust.lastJobDate || 'Yeni'}</span>
+                    <button onClick={() => sendSixMonthReminder(cust)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow">
+                      6 Ay Hatırlatması Gönder 📲
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {customers.length === 0 && (
+                <div className="bg-white p-8 rounded-2xl text-center text-slate-400 text-sm border border-slate-200">Henüz kayıtlı müşteri bulunmuyor. Yeni iş kaydı oluşturdukça buraya eklenecektir.</div>
+              )}
+            </div>
           </div>
         )}
 
@@ -827,9 +829,9 @@ export default function App() {
               </h2>
 
               <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Personel Adı Soyadı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Giriş Şifresi / PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="number" placeholder="Varsayılan Hakediş (TL)" value={newWorkerHakedis} onChange={(e) => setNewWorkerHakedis(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Personel Adı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Giriş PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="number" placeholder="Hakediş (TL)" value={newWorkerHakedis} onChange={(e) => setNewWorkerHakedis(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow flex items-center justify-center space-x-1">
                   <UserPlus className="w-4 h-4 mr-1" />
                   <span>Personel Ekle</span>
@@ -843,7 +845,7 @@ export default function App() {
                       <h4 className="font-bold text-slate-800 text-sm">{w.name}</h4>
                       <span className="text-xs text-slate-400 font-mono">Giriş PIN: {w.pin} | Hakediş: {w.defaultHakedis} TL</span>
                     </div>
-                    <button onClick={() => handleDeleteWorker(w.id)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition">
+                    <button onClick={() => handleDeleteWorker(w.id)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Sil">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -900,20 +902,22 @@ export default function App() {
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
               <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
                 <RefreshCw className="w-6 h-6 text-emerald-600" />
-                <span>KVKK Onaylı Periyodik Hatırlatıcılar</span>
+                <span>KVKK & 6 Aylık Periyodik Hatırlatıcılar</span>
               </h2>
+              <p className="text-xs text-slate-500">Sadece KVKK onaylı müşterilerinize tek tuşla 6 aylık temizlik hatırlatması gönderebilirsiniz.</p>
             </div>
+
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-800 text-sm mb-3">KVKK Onayı Veren Müşteriler ({jobs.filter(j => j.kvkkApproved).length})</h3>
+              <h3 className="font-bold text-slate-800 text-sm mb-3">KVKK Onaylı Müşteriler ({customers.filter(c => c.kvkk).length})</h3>
               <div className="space-y-2">
-                {jobs.filter(j => j.kvkkApproved).map(j => (
-                  <div key={j.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm">
+                {customers.filter(c => c.kvkk).map(c => (
+                  <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm">
                     <div>
-                      <span className="font-bold text-slate-900">{j.customerName}</span>
-                      <span className="text-xs text-slate-500 ml-2">({j.phone})</span>
+                      <span className="font-bold text-slate-900">{c.name}</span>
+                      <span className="text-xs text-slate-500 ml-2">({c.phone})</span>
                     </div>
-                    <button onClick={() => sendWhatsAppMessage(j)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
-                      Hatırlatma Mesajı Gönder 📲
+                    <button onClick={() => sendSixMonthReminder(c)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow">
+                      6 Ay Hatırlatması Gönder 📲
                     </button>
                   </div>
                 ))}
@@ -952,13 +956,14 @@ export default function App() {
             <div className="border-b border-slate-200 pb-4 text-center space-y-1">
               <h2 className="text-2xl font-extrabold text-slate-900">PEVUNO SOLUTION</h2>
               <p className="text-xs text-slate-500">Profesyonel Temizlik & Hijyen Servis Fişi</p>
-              <p className="text-xs font-medium text-emerald-700 mt-1">Saha Personeli: {formatWorkerNameMasked(selectedJobForReceipt.assignedWorker)}</p>
+              <p className="text-xs font-medium text-emerald-700 mt-1">Saha Ekibi: {formatWorkerNameMasked(selectedJobForReceipt.assignedWorkers)}</p>
             </div>
 
             <div className="text-xs space-y-1 text-slate-600">
               <p><strong>Müşteri:</strong> {selectedJobForReceipt.customerName}</p>
               <p><strong>Telefon:</strong> {selectedJobForReceipt.phone}</p>
               <p><strong>Adres:</strong> {selectedJobForReceipt.address}</p>
+              <p><strong>Randevu:</strong> {selectedJobForReceipt.date} - {selectedJobForReceipt.time}</p>
               <p><strong>Ödeme Şekli:</strong> {selectedJobForReceipt.paymentMethod}</p>
             </div>
 
