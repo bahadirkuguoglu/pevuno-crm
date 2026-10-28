@@ -84,7 +84,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [isSynced, setIsSynced] = useState(false);
 
-  // Yerel Hafıza (LocalStorage) Destekli State Yönetimi (Asla kaybolma/geri gelme olmaz)
+  // Yerel Hafıza Destekli State Yönetimi
   const [services, setServices] = useState(() => {
     const saved = localStorage.getItem('pevuno_services');
     return saved ? JSON.parse(saved) : DEFAULT_SERVICES;
@@ -117,43 +117,47 @@ export default function App() {
 
   const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
 
-  // İlk Açılışta Buluttan Veri Çekme (Sadece eksikse veya ilk yüklemede)
-  useEffect(() => {
-    async function initCloudData() {
-      const cloudServices = await fetchSupabaseData('services', null);
-      if (cloudServices && cloudServices.length > 0) {
-        setServices(cloudServices);
-        localStorage.setItem('pevuno_services', JSON.stringify(cloudServices));
-      }
-
-      const cloudWorkers = await fetchSupabaseData('workers', null);
-      if (cloudWorkers) {
-        setWorkers(cloudWorkers);
-        localStorage.setItem('pevuno_workers', JSON.stringify(cloudWorkers));
-      }
-
-      const cloudJobs = await fetchSupabaseData('jobs', null);
-      if (cloudJobs) {
-        setJobs(cloudJobs);
-        localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs));
-      }
-
-      const cloudCustomers = await fetchSupabaseData('customers', null);
-      if (cloudCustomers) {
-        setCustomers(cloudCustomers);
-        localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers));
-      }
-
-      const cloudKvkk = await fetchSupabaseData('kvkk_template', null);
-      if (cloudKvkk) {
-        setKvkkTemplate(cloudKvkk);
-        setTempKvkkInput(cloudKvkk);
-        localStorage.setItem('pevuno_kvkk', cloudKvkk);
-      }
-
-      setIsSynced(true);
+  // Buluttan Veri Çekme ve Senkronizasyon Fonksiyonu
+  const syncWithCloud = async () => {
+    setIsSynced(false);
+    const cloudServices = await fetchSupabaseData('services', null);
+    if (cloudServices && cloudServices.length > 0) {
+      setServices(cloudServices);
+      localStorage.setItem('pevuno_services', JSON.stringify(cloudServices));
     }
-    initCloudData();
+
+    const cloudWorkers = await fetchSupabaseData('workers', null);
+    if (cloudWorkers) {
+      setWorkers(cloudWorkers);
+      localStorage.setItem('pevuno_workers', JSON.stringify(cloudWorkers));
+    }
+
+    const cloudJobs = await fetchSupabaseData('jobs', null);
+    if (cloudJobs) {
+      setJobs(cloudJobs);
+      localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs));
+    }
+
+    const cloudCustomers = await fetchSupabaseData('customers', null);
+    if (cloudCustomers) {
+      setCustomers(cloudCustomers);
+      localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers));
+    }
+
+    const cloudKvkk = await fetchSupabaseData('kvkk_template', null);
+    if (cloudKvkk) {
+      setKvkkTemplate(cloudKvkk);
+      setTempKvkkInput(cloudKvkk);
+      localStorage.setItem('pevuno_kvkk', cloudKvkk);
+    }
+    setIsSynced(true);
+  };
+
+  // İlk açılışta ve telefonda uygulama simgesine tıklandığında (focus olunca) buluttan güncellemeleri al
+  useEffect(() => {
+    syncWithCloud();
+    window.addEventListener('focus', syncWithCloud);
+    return () => window.removeEventListener('focus', syncWithCloud);
   }, []);
 
   const [selectedExistingCustomer, setSelectedExistingCustomer] = useState('');
@@ -574,7 +578,13 @@ export default function App() {
             <div>
               <h1 className="font-extrabold text-lg tracking-tight flex items-center gap-2">
                 PEVUNO SOLUTION 
-                {isSynced ? <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center"><Cloud className="w-3 h-3 mr-1"/> Hazır</span> : <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Yükleniyor...</span>}
+                {isSynced ? (
+                  <button onClick={syncWithCloud} className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center hover:bg-emerald-500/30 transition">
+                    <Cloud className="w-3 h-3 mr-1"/> Bulut Aktif (🔄 Eşitle)
+                  </button>
+                ) : (
+                  <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Eşitleniyor...</span>
+                )}
               </h1>
               <p className="text-xs text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name}</strong></p>
             </div>
