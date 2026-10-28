@@ -29,6 +29,15 @@ async function fetchSupabaseData(key, defaultVal) {
 
 async function saveSupabaseData(key, value) {
   try {
+    // Önce eski veriyi temizle, ardından güncel veriyi kaydet (Silinme ve geri gelme sorununu çözer)
+    await fetch(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+
     await fetch(`${SUPABASE_URL}/rest/v1/app_data`, {
       method: 'POST',
       headers: {
@@ -84,12 +93,12 @@ export default function App() {
   const [kvkkTemplate, setKvkkTemplate] = useState(DEFAULT_KVKK_TEMPLATE);
   const [tempKvkkInput, setTempKvkkInput] = useState(DEFAULT_KVKK_TEMPLATE);
 
-  const isLocalActionRef = useRef(false);
+  const isSavingRef = useRef(false);
 
   // Bulut Verilerini Senkronize Etme
   useEffect(() => {
     async function initCloudData() {
-      if (isLocalActionRef.current) return; // Kullanıcı işlem yaparken bulut çekmesini engelle (ezilme önleyici)
+      if (isSavingRef.current) return;
 
       const cloudServices = await fetchSupabaseData('services', DEFAULT_SERVICES);
       const cloudWorkers = await fetchSupabaseData('workers', []);
@@ -109,7 +118,7 @@ export default function App() {
     }
     initCloudData();
 
-    const interval = setInterval(initCloudData, 5000);
+    const interval = setInterval(initCloudData, 6000);
     return () => clearInterval(interval);
   }, []);
 
@@ -146,14 +155,13 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('pevuno_logged_user', JSON.stringify(currentUser)); }, [currentUser]);
 
-  // Güvenli Güncelleme Fonksiyonları (Race Condition / Silinme Engelleme Korumalı)
   const commitChange = async (key, newValue, setter) => {
-    isLocalActionRef.current = true;
+    isSavingRef.current = true;
     setter(newValue);
     await saveSupabaseData(key, newValue);
     setTimeout(() => {
-      isLocalActionRef.current = false;
-    }, 1000);
+      isSavingRef.current = false;
+    }, 2000);
   };
 
   const updateServices = (newServ) => commitChange('services', newServ, setServices);
@@ -227,7 +235,7 @@ export default function App() {
     setNewWorkerName('');
     setNewWorkerPin('');
     setNewWorkerPhone('');
-    alert('Yeni personel başarıyla eklendi ve buluta kaydedildi!');
+    alert('Yeni personel eklendi ve buluta kaydedildi!');
   };
 
   const handleDeleteWorker = (workerId) => {
@@ -258,7 +266,7 @@ export default function App() {
     setDirectCustPhone('');
     setDirectCustCompany('');
     setDirectCustAddress('');
-    alert('Müşteri başarıyla kaydedildi ve tüm cihazlara senkronize edildi!');
+    alert('Müşteri başarıyla kaydedildi!');
   };
 
   const handleSelectCustomerFromDropdown = (custId) => {
