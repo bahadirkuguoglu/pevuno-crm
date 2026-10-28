@@ -117,43 +117,46 @@ export default function App() {
 
   const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
 
-  // Buluttan Veri Çekme ve Senkronizasyon Fonksiyonu
+  // Güçlendirilmiş Bulut Senkronizasyonu
   const syncWithCloud = async () => {
     setIsSynced(false);
-    const cloudServices = await fetchSupabaseData('services', null);
-    if (cloudServices && cloudServices.length > 0) {
-      setServices(cloudServices);
-      localStorage.setItem('pevuno_services', JSON.stringify(cloudServices));
-    }
+    try {
+      const cloudServices = await fetchSupabaseData('services', null);
+      if (cloudServices && Array.isArray(cloudServices)) {
+        setServices(cloudServices);
+        localStorage.setItem('pevuno_services', JSON.stringify(cloudServices));
+      }
 
-    const cloudWorkers = await fetchSupabaseData('workers', null);
-    if (cloudWorkers) {
-      setWorkers(cloudWorkers);
-      localStorage.setItem('pevuno_workers', JSON.stringify(cloudWorkers));
-    }
+      const cloudWorkers = await fetchSupabaseData('workers', null);
+      if (cloudWorkers && Array.isArray(cloudWorkers)) {
+        setWorkers(cloudWorkers);
+        localStorage.setItem('pevuno_workers', JSON.stringify(cloudWorkers));
+      }
 
-    const cloudJobs = await fetchSupabaseData('jobs', null);
-    if (cloudJobs) {
-      setJobs(cloudJobs);
-      localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs));
-    }
+      const cloudJobs = await fetchSupabaseData('jobs', null);
+      if (cloudJobs && Array.isArray(cloudJobs)) {
+        setJobs(cloudJobs);
+        localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs));
+      }
 
-    const cloudCustomers = await fetchSupabaseData('customers', null);
-    if (cloudCustomers) {
-      setCustomers(cloudCustomers);
-      localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers));
-    }
+      const cloudCustomers = await fetchSupabaseData('customers', null);
+      if (cloudCustomers && Array.isArray(cloudCustomers)) {
+        setCustomers(cloudCustomers);
+        localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers));
+      }
 
-    const cloudKvkk = await fetchSupabaseData('kvkk_template', null);
-    if (cloudKvkk) {
-      setKvkkTemplate(cloudKvkk);
-      setTempKvkkInput(cloudKvkk);
-      localStorage.setItem('pevuno_kvkk', cloudKvkk);
+      const cloudKvkk = await fetchSupabaseData('kvkk_template', null);
+      if (cloudKvkk) {
+        setKvkkTemplate(cloudKvkk);
+        setTempKvkkInput(cloudKvkk);
+        localStorage.setItem('pevuno_kvkk', cloudKvkk);
+      }
+    } catch (err) {
+      console.error("Senkronizasyon hatası:", err);
     }
     setIsSynced(true);
   };
 
-  // İlk açılışta ve telefonda uygulama simgesine tıklandığında (focus olunca) buluttan güncellemeleri al
   useEffect(() => {
     syncWithCloud();
     window.addEventListener('focus', syncWithCloud);
@@ -193,7 +196,6 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('pevuno_logged_user', JSON.stringify(currentUser)); }, [currentUser]);
 
-  // Anında Yerel Kayıt + Bulut Senkronizasyonu
   const commitChange = async (key, newValue, setter, storageKey) => {
     setter(newValue);
     localStorage.setItem(storageKey, JSON.stringify(newValue));
@@ -535,10 +537,18 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
-          <div className="text-center space-y-2">
-            <div className="bg-emerald-500 w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-slate-950 text-2xl font-black shadow-lg">✨</div>
-            <h1 className="text-2xl font-black text-slate-900">PEVUNO SOLUTION</h1>
-            <p className="text-xs text-slate-500">Bulut Senkronize Saha Yönetimi</p>
+          <div className="text-center space-y-3">
+            {/* Özel Logonun Giriş Ekranındaki Görseli */}
+            <div className="w-16 h-16 bg-black rounded-full border-2 border-white/20 mx-auto flex items-center justify-center shadow-lg overflow-hidden p-1">
+              <svg viewBox="0 0 200 200" className="w-full h-full text-white">
+                <circle cx="100" cy="100" r="90" fill="black" stroke="white" strokeWidth="6" />
+                <path d="M60 45 L140 45 C165 45 175 60 165 85 C155 110 135 120 120 120 L95 120 L75 155 L55 155 L85 105 L115 105 C125 105 138 100 143 85 C148 70 140 60 125 60 L80 60 Z" fill="white" />
+                <path d="M75 75 L105 135 L135 75 Z" fill="black" />
+                <path d="M85 90 L105 120 L125 90 Z" fill="white" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-wider">PEVUNO SOLUTION</h1>
+            <p className="text-xs text-slate-500 font-medium">Professional Field Services CRM</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -572,30 +582,43 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          
+          {/* Sol Taraf: Özel Yuvarlak Logo ve Başlık */}
           <div className="flex items-center space-x-3">
-            <div className="bg-emerald-500 p-2 rounded-xl text-slate-950 font-bold">✨</div>
+            <div className="w-10 h-10 bg-black rounded-full border border-white/30 flex items-center justify-center shadow-md overflow-hidden shrink-0 p-0.5">
+              <svg viewBox="0 0 200 200" className="w-full h-full text-white">
+                <circle cx="100" cy="100" r="90" fill="black" stroke="white" strokeWidth="6" />
+                <path d="M60 45 L140 45 C165 45 175 60 165 85 C155 110 135 120 120 120 L95 120 L75 155 L55 155 L85 105 L115 105 C125 105 138 100 143 85 C148 70 140 60 125 60 L80 60 Z" fill="white" />
+                <path d="M75 75 L105 135 L135 75 Z" fill="black" />
+                <path d="M85 90 L105 120 L125 90 Z" fill="white" />
+              </svg>
+            </div>
             <div>
-              <h1 className="font-extrabold text-lg tracking-tight flex items-center gap-2">
-                PEVUNO SOLUTION 
-                {isSynced ? (
-                  <button onClick={syncWithCloud} className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center hover:bg-emerald-500/30 transition">
-                    <Cloud className="w-3 h-3 mr-1"/> Bulut Aktif (🔄 Eşitle)
-                  </button>
-                ) : (
-                  <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Eşitleniyor...</span>
-                )}
-              </h1>
-              <p className="text-xs text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name}</strong></p>
+              <h1 className="font-extrabold text-base sm:text-lg tracking-tight leading-tight">PEVUNO SOLUTION</h1>
+              <p className="text-[11px] text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name}</strong></p>
             </div>
           </div>
 
-          <button onClick={() => setCurrentUser(null)} className="bg-slate-800 hover:bg-rose-900/40 text-slate-300 text-xs px-3 py-2 rounded-xl border border-slate-700 flex items-center space-x-1.5 transition">
-            <LogOut className="w-4 h-4" />
-            <span>Çıkış Yap</span>
-          </button>
+          {/* Sağ Taraf: Mobil Bozulmayı Önleyen Tek Satır Eşitleme Butonu ve Çıkış */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <button 
+              onClick={syncWithCloud} 
+              className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs px-2.5 py-1.5 rounded-xl font-medium flex items-center space-x-1 hover:bg-emerald-500/30 transition whitespace-nowrap"
+              title="Bulut ile Senkronize Et"
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span>{isSynced ? '🔄 Eşitle' : '⏳ Bekleyin'}</span>
+            </button>
+
+            <button onClick={() => setCurrentUser(null)} className="bg-slate-800 hover:bg-rose-900/40 text-slate-300 text-xs px-2.5 py-1.5 rounded-xl border border-slate-700 flex items-center space-x-1 transition">
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Çıkış</span>
+            </button>
+          </div>
         </div>
 
+        {/* Sekme Menüleri */}
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
             {currentUser.role === 'admin' && (
