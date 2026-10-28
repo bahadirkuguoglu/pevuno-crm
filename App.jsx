@@ -3,7 +3,7 @@ import {
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
   MessageSquare, DollarSign, Edit3, Trash2, 
-  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send
+  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send, UserCheck
 } from 'lucide-react';
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
@@ -18,7 +18,7 @@ async function fetchSupabaseData(key, defaultVal) {
       }
     });
     const data = await res.json();
-    if (data && data.length > 0) return data[0].value;
+    if (data && data.length > 0 && data[0].value !== undefined) return data[0].value;
     return defaultVal;
   } catch (err) {
     console.error("Supabase okuma hatası:", err);
@@ -52,9 +52,9 @@ const DEFAULT_SERVICES = [
   { id: '6', name: 'Sandalye Yıkama', price: 150, unit: 'adet' },
 ];
 
-const DEFAULT_WORKERS = [
-  { id: 'w1', name: 'Yunus Yıldız', pin: '1234', defaultHakedis: 300 },
-  { id: 'w2', name: 'Ahmet Demir', pin: '5678', defaultHakedis: 250 }
+const INITIAL_WORKERS = [
+  { id: 'w1', name: 'Yunus Yıldız', pin: '1234', phone: '05321112233', defaultHakedis: 300 },
+  { id: 'w2', name: 'Ahmet Demir', pin: '5678', phone: '05334445566', defaultHakedis: 250 }
 ];
 
 export default function App() {
@@ -70,15 +70,16 @@ export default function App() {
   const [isSynced, setIsSynced] = useState(false);
 
   const [services, setServices] = useState(DEFAULT_SERVICES);
-  const [workers, setWorkers] = useState(DEFAULT_WORKERS);
+  const [workers, setWorkers] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [expenses, setExpenses] = useState([]);
 
+  // İlk yüklemede buluttan verileri çek (Sadece ilk açılışta varsayılanları ezmemek için kontrol)
   useEffect(() => {
-    async function loadCloudData() {
+    async function initCloudData() {
       const cloudServices = await fetchSupabaseData('services', DEFAULT_SERVICES);
-      const cloudWorkers = await fetchSupabaseData('workers', DEFAULT_WORKERS);
+      const cloudWorkers = await fetchSupabaseData('workers', INITIAL_WORKERS);
       const cloudJobs = await fetchSupabaseData('jobs', []);
       const cloudCustomers = await fetchSupabaseData('customers', []);
       const cloudExpenses = await fetchSupabaseData('expenses', []);
@@ -90,12 +91,11 @@ export default function App() {
       setExpenses(cloudExpenses);
       setIsSynced(true);
     }
-    loadCloudData();
-    const interval = setInterval(loadCloudData, 5000);
-    return () => clearInterval(interval);
+    initCloudData();
   }, []);
 
-  // Yeni İş Formu State'leri
+  // Form State'leri
+  const [selectedExistingCustomer, setSelectedExistingCustomer] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [newCompany, setNewCompany] = useState('');
@@ -110,16 +110,14 @@ export default function App() {
   const [jobDate, setJobDate] = useState(new Date().toISOString().split('T')[0]);
   const [jobTime, setJobTime] = useState('10:00');
   
-  // Çoklu Personel Atama
   const [selectedWorkers, setSelectedWorkers] = useState([]);
   const [workerHakedis, setWorkerHakedis] = useState(300);
 
-  // Yeni Personel Formu
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerPin, setNewWorkerPin] = useState('');
+  const [newWorkerPhone, setNewWorkerPhone] = useState('');
   const [newWorkerHakedis, setNewWorkerHakedis] = useState('');
 
-  // Katalog & Fiş
   const [newService, setNewService] = useState({ name: '', price: '', unit: 'adet' });
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [selectedJobForReceipt, setSelectedJobForReceipt] = useState(null);
@@ -155,7 +153,7 @@ export default function App() {
       if (loginPin === '1453' || loginPin === 'admin') {
         setCurrentUser({ role: 'admin', name: 'Bahadır (Yönetici)' });
       } else {
-        alert('Hataly Yönetici Şifresi! (Şifre: 1453)');
+        alert('Hatalı Yönetici Şifresi! (Şifre: 1453)');
       }
     } else {
       const worker = workers.find(w => w.id === selectedWorkerId);
@@ -177,25 +175,45 @@ export default function App() {
       id: `w-${Date.now()}`,
       name: newWorkerName,
       pin: newWorkerPin,
+      phone: newWorkerPhone,
       defaultHakedis: Number(newWorkerHakedis) || 300
     };
     updateWorkers([...workers, newWObj]);
     setNewWorkerName('');
     setNewWorkerPin('');
+    setNewWorkerPhone('');
     setNewWorkerHakedis('');
-    alert('Yeni personel başarıyla eklendi!');
+    alert('Yeni personel eklendi ve buluta kaydedildi!');
   };
 
   const handleDeleteWorker = (workerId) => {
     if (confirm('Bu personeli silmek istediğinize emin misiniz?')) {
-      updateWorkers(workers.filter(w => w.id !== workerId));
+      const updatedList = workers.filter(w => w.id !== workerId);
+      updateWorkers(updatedList);
+    }
+  };
+
+  const handleSelectCustomerFromDropdown = (custId) => {
+    setSelectedExistingCustomer(custId);
+    if (!custId) {
+      setNewCustomerName('');
+      setNewCustomerPhone('');
+      setNewCompany('');
+      return;
+    }
+    const cust = customers.find(c => c.id === custId);
+    if (cust) {
+      setNewCustomerName(cust.name);
+      setNewCustomerPhone(cust.phone);
+      setNewCompany(cust.company || '');
+      setKvkkChecked(cust.kvkk || false);
     }
   };
 
   const handleCreateJob = (e) => {
     e.preventDefault();
-    if (!newCustomerName || !newCustomerPhone || selectedItems.length === 0) {
-      alert('Lütfen müşteri adı, telefon ve en az 1 hizmet seçiniz.');
+    if (!newCustomerName || !newCustomerPhone || selectedItems.length === 0 || !newAddress) {
+      alert('Lütfen müşteri adı, telefon, adres ve en az 1 hizmet seçiniz.');
       return;
     }
 
@@ -215,7 +233,7 @@ export default function App() {
       status: 'Sırada / Randevu',
       date: jobDate,
       time: jobTime,
-      assignedWorkers: selectedWorkers.length > 0 ? selectedWorkers : [workers[0]?.name || 'Saha Ekibi'],
+      assignedWorkers: selectedWorkers.length > 0 ? selectedWorkers : (workers[0] ? [workers[0].name] : ['Saha Ekibi']),
       workerHakedis: Number(workerHakedis) || 300,
       kvkkApproved: kvkkChecked,
       paymentMethod: 'Elden (Saha)',
@@ -224,13 +242,13 @@ export default function App() {
 
     updateJobs([newJobObj, ...jobs]);
 
-    // Müşteri listesine ekle / güncelle (Çoklu adres desteği)
+    // Müşteri veritabanına ekle / güncelle (Çoklu adres desteği)
     const existingCustIndex = customers.findIndex(c => c.phone === newCustomerPhone);
     if (existingCustIndex > -1) {
       const cust = customers[existingCustIndex];
       const updatedAddresses = cust.addresses.includes(newAddress) ? cust.addresses : [...cust.addresses, newAddress];
       const updatedCusts = [...customers];
-      updatedCusts[existingCustIndex] = { ...cust, addresses: updatedAddresses, lastJobDate: jobDate };
+      updatedCusts[existingCustIndex] = { ...cust, addresses: updatedAddresses, lastJobDate: jobDate, kvkk: kvkkChecked };
       updateCustomers(updatedCusts);
     } else {
       const newCustObj = {
@@ -251,6 +269,7 @@ export default function App() {
     setNewAddress('');
     setNewNote('');
     setKvkkChecked(false);
+    setSelectedExistingCustomer('');
     setSelectedItems([]);
     setDiscountType('none');
     setDiscountValue(0);
@@ -279,7 +298,54 @@ export default function App() {
     alert('İş tamamlandı ve yöneticiye bildirildi!');
   };
 
-  // WhatsApp Business Mesajı 1: Yola Çıkıldı
+  // Çalışana WhatsApp ile İş Bildirimi Gönderme
+  const sendWhatsAppNotificationToWorker = (job) => {
+    if (!job.assignedWorkers || job.assignedWorkers.length === 0) {
+      alert('Bu işe henüz personel atanmamış!');
+      return;
+    }
+    
+    // İlk atanan personelin telefonunu bulalım
+    const workerName = job.assignedWorkers[0];
+    const workerObj = workers.find(w => w.name === workerName);
+    
+    let targetPhone = workerObj?.phone || '';
+    if (!targetPhone) {
+      const manualPhone = prompt(`${workerName} için telefon numarası girin (Örn: 0532...):`);
+      if (!manualPhone) return;
+      targetPhone = manualPhone;
+    }
+
+    let msg = `🔔 *YENİ İŞ / RANDEVU ATAMASI*\n\n`;
+    msg += `👤 *Müşteri:* ${job.customerName}\n`;
+    msg += `📞 *Telefon:* ${job.phone}\n`;
+    msg += `📍 *Adres:* ${job.address}\n`;
+    msg += `📅 *Tarih / Saat:* ${job.date} - ${job.time || '10:00'}\n`;
+    msg += `📋 *Hizmetler:*\n`;
+    job.items.forEach(i => {
+      msg += `• ${i.serviceName} x${i.qty}\n`;
+    });
+    if (job.note) msg += `📌 *Not:* ${job.note}\n`;
+    msg += `\nİyi çalışmalar dileriz! 🚀`;
+
+    const encoded = encodeURIComponent(msg);
+    const cleanPhone = targetPhone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
+    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
+  };
+
+  // Müşteriye KVKK Onay Mesajı Gönderme
+  const sendKvkkApprovalRequest = (cust) => {
+    let msg = `Merhaba *${cust.name}*,\n\n`;
+    msg += `🌿 *PEVUNO SOLUTION* profesyonel temizlik hizmetleri olarak, kaliteyi artırmak, size özel kampanyalar sunmak ve 6 ayda bir periyodik hatırlatmalar yapabilmek amacıyla KVKK kapsamında onayınızı rica ederiz.\n\n`;
+    msg += `Onaylıyorsanız bu mesaja "ONAYLIYORUM" yazarak yanıt verebilirsiniz. Teşekkür ederiz! 🧼✨`;
+
+    const encoded = encodeURIComponent(msg);
+    const cleanPhone = cust.phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
+    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
+  };
+
   const sendWhatsAppOnTheWay = (job) => {
     const assignedText = formatWorkerNameMasked(job.assignedWorkers);
     let msg = `Merhaba *${job.customerName}*,\n\n`;
@@ -294,7 +360,6 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
-  // WhatsApp Business Mesajı 2: Servis Tamamlandı (Müşteri hakedişi asla görmez)
   const sendWhatsAppCompletion = (job) => {
     const remaining = job.totalAmount - job.paidAmount;
     const reviewLink = "https://g.page/r/pevuno-solution/review";
@@ -324,7 +389,6 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
-  // 6 Ay Sonra Hatırlatma Gönderme (KVKK Onaylı)
   const sendSixMonthReminder = (cust) => {
     let msg = `Merhaba *${cust.name}*,\n\n`;
     msg += `🌿 *PEVUNO SOLUTION* ailesi olarak sağlıklı ve hijyenik günler dileriz.\n`;
@@ -584,19 +648,28 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* WhatsApp Business Butonları (Yola Çıkıldı & Servis Bitti) */}
-                  <div className="grid grid-cols-3 gap-1.5 pt-2">
-                    <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                  {/* Çalışana Bildir & WhatsApp Butonları */}
+                  {currentUser.role === 'admin' && (
+                    <div className="pt-1">
+                      <button onClick={() => sendWhatsAppNotificationToWorker(job)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition mb-2">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>👷 Çalışana WP ile İş Detayını Gönder</span>
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-1.5 pt-1">
+                    <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
                       <Send className="w-3 h-3" />
                       <span>Yola Çıkıldı</span>
                     </button>
 
-                    <button onClick={() => sendWhatsAppCompletion(job)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                    <button onClick={() => sendWhatsAppCompletion(job)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
                       <MessageSquare className="w-3 h-3" />
                       <span>Servis Bitti</span>
                     </button>
 
-                    <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] py-2 px-2 rounded-xl flex items-center justify-center space-x-1 border border-slate-200 transition">
+                    <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 border border-slate-200 transition">
                       <FileText className="w-3 h-3" />
                       <span>Servis Fişi</span>
                     </button>
@@ -615,6 +688,21 @@ export default function App() {
             </h2>
 
             <form onSubmit={handleCreateJob} className="space-y-6">
+              {/* Kayıtlı Müşterilerden Seçme Alanı */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Kayıtlı Müşterilerden Seç (Opsiyonel)</label>
+                <select
+                  value={selectedExistingCustomer}
+                  onChange={(e) => handleSelectCustomerFromDropdown(e.target.value)}
+                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-white"
+                >
+                  <option value="">-- Yeni Müşteri Ekle veya Kayıtlı Seç --</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.phone}) {c.company ? `- ${c.company}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Müşteri Adı Soyadı *</label>
@@ -744,7 +832,7 @@ export default function App() {
                 <div className="flex items-center space-x-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                   <input type="checkbox" id="kvkkCheck" checked={kvkkChecked} onChange={(e) => setKvkkChecked(e.target.checked)} className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer" />
                   <label htmlFor="kvkkCheck" className="text-xs text-slate-700 cursor-pointer">
-                    Müşteriye KVKK Aydınlatma Metni gönderildi ve onay alındı (6 ayda bir hatırlatıcı için zorunludur).
+                    Müşteri KVKK Aydınlatma Metnini onayladı (6 ayda bir hatırlatıcı için işaretleyin).
                   </label>
                 </div>
 
@@ -775,9 +863,9 @@ export default function App() {
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
               <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
                 <BookOpen className="w-6 h-6 text-emerald-600" />
-                <span>Müşteri Veri Tabanı & Çoklu Adres Yönetimi</span>
+                <span>Müşteri Veri Tabanı & KVKK Onay Yönetimi</span>
               </h2>
-              <p className="text-xs text-slate-500">Burada kayıtlı tüm müşterileriniz, telefon numaraları ve ev/iş gibi farklı adres geçmişleri listelenir.</p>
+              <p className="text-xs text-slate-500">Müşterilerinizin tüm adres geçmişini görebilir, tek tuşla KVKK onay mesajı veya 6 aylık hatırlatma gönderebilirsiniz.</p>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -785,19 +873,25 @@ export default function App() {
                 <div key={cust.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-bold text-base text-slate-900">{cust.name} {cust.company && <span className="text-xs text-slate-500">({cust.company})</span>}</h3>
+                      <h3 className="font-bold base text-slate-900">{cust.name} {cust.company && <span className="text-xs text-slate-500">({cust.company})</span>}</h3>
                       <p className="text-xs text-emerald-600 font-mono mt-0.5">📞 {cust.phone}</p>
                     </div>
-                    {cust.kvkk && (
-                      <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-bold border border-emerald-200">
-                        🛡️ KVKK Onaylı
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {cust.kvkk ? (
+                        <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-bold border border-emerald-200">
+                          🛡️ KVKK Onaylı
+                        </span>
+                      ) : (
+                        <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow">
+                          🛡️ KVKK Onay İste (WP)
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kayıtlı Adresler ({cust.addresses.length}):</p>
-                    {cust.addresses.map((addr, idx) => (
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kayıtlı Adresler ({cust.addresses?.length || 0}):</p>
+                    {cust.addresses?.map((addr, idx) => (
                       <p key={idx} className="text-xs text-slate-700 flex items-start space-x-1.5">
                         <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                         <span>{addr}</span>
@@ -806,7 +900,7 @@ export default function App() {
                   </div>
 
                   <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
-                    <span className="text-slate-400">Son İşlem Tarihi: {cust.lastJobDate || 'Yeni'}</span>
+                    <span className="text-slate-400">Son İşlem: {cust.lastJobDate || 'Yeni'}</span>
                     <button onClick={() => sendSixMonthReminder(cust)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow">
                       6 Ay Hatırlatması Gönder 📲
                     </button>
@@ -828,13 +922,14 @@ export default function App() {
                 <span>Saha Personeli & Şifre Yönetimi</span>
               </h2>
 
-              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <input type="text" required placeholder="Personel Adı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <input type="text" required placeholder="Giriş PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" placeholder="Telefon (0532...)" value={newWorkerPhone} onChange={(e) => setNewWorkerPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <input type="number" placeholder="Hakediş (TL)" value={newWorkerHakedis} onChange={(e) => setNewWorkerHakedis(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow flex items-center justify-center space-x-1">
                   <UserPlus className="w-4 h-4 mr-1" />
-                  <span>Personel Ekle</span>
+                  <span>Ekle</span>
                 </button>
               </form>
 
@@ -843,7 +938,7 @@ export default function App() {
                   <div key={w.id} className="p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition">
                     <div>
                       <h4 className="font-bold text-slate-800 text-sm">{w.name}</h4>
-                      <span className="text-xs text-slate-400 font-mono">Giriş PIN: {w.pin} | Hakediş: {w.defaultHakedis} TL</span>
+                      <span className="text-xs text-slate-400 font-mono">PIN: {w.pin} | Tel: {w.phone || 'Yok'} | Hakediş: {w.defaultHakedis} TL</span>
                     </div>
                     <button onClick={() => handleDeleteWorker(w.id)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Sil">
                       <Trash2 className="w-4 h-4" />
