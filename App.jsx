@@ -8,8 +8,23 @@ import {
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_506jwPoEvILEU07Xad7zEA_ywR6FixZ";
-
-async function fetchSupabaseData(key, defaultVal) {
+// Mobil ağlarda takılmayı önleyen zaman aşımı korumalı fetch fonksiyonu
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return response;
+  } catch (error) {
+    clearTimeout(timer);
+    if (error.name === 'AbortError') {
+      throw new Error('Bağlantı zaman aşımına uğradı. Lütfen internetinizi kontrol edin.');
+    }
+    throw error;
+  }
+};
+async function fetchWithTimeoutSupabaseData(key, defaultVal) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}`, {
       headers: {
