@@ -724,16 +724,20 @@ export default function App() {
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
             
-            {/* YÖNETİCİ SEKMELERİ */}
+            {/* YÖNETİCİ SEKMELERİ (KASA VE DASHBOARD BİRLEŞTİRİLDİ, TAMAMLANAN İŞLER EKLENDİ) */}
             {currentUser.role === 'admin' && (
               <>
                 <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <LayoutDashboard className="w-4 h-4" />
-                  <span>Dashboard & Rota</span>
+                  <span>Dashboard & Kasa</span>
                 </button>
                 <button onClick={() => setActiveTab('jobs')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <ShoppingBag className="w-4 h-4" />
-                  <span>İş Listesi ({jobs.length})</span>
+                  <span>Aktif İşler ({jobs.filter(j => j.status !== 'Tamamlandı').length})</span>
+                </button>
+                <button onClick={() => setActiveTab('admin-completed')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'admin-completed' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Tamamlanan İşler ({jobs.filter(j => j.status === 'Tamamlandı').length})</span>
                 </button>
                 <button onClick={() => setActiveTab('new-job')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'new-job' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <PlusCircle className="w-4 h-4" />
@@ -754,10 +758,6 @@ export default function App() {
                 <button onClick={() => setActiveTab('reminders')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'reminders' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <RefreshCw className="w-4 h-4" />
                   <span>Hatırlatıcılar</span>
-                </button>
-                <button onClick={() => setActiveTab('finance')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'finance' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
-                  <TrendingUp className="w-4 h-4" />
-                  <span>Kasa</span>
                 </button>
                 <button onClick={() => setActiveTab('security')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'security' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <Lock className="w-4 h-4" />
@@ -790,18 +790,38 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         
-        {/* YÖNETİCİ DASHBOARD & ROTA TAKİBİ */}
+        {/* YÖNETİCİ DASHBOARD & KASA BİRLEŞTİRİLMİŞ EKRAN */}
         {activeTab === 'dashboard' && currentUser.role === 'admin' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-3xl text-white shadow-lg">
               <div>
                 <h2 className="text-2xl font-black">Hoş Geldiniz, Bahadır Bey 👋</h2>
-                <p className="text-xs text-slate-300 mt-1">Pevuno Solution Canlı Saha Operasyon ve Rota Merkezi</p>
+                <p className="text-xs text-slate-300 mt-1">Pevuno Solution Canlı Saha Operasyon ve Finansal Kasa Merkezi</p>
               </div>
               <button onClick={() => setActiveTab('new-job')} className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl shadow-lg transition text-xs flex items-center space-x-1">
                 <PlusCircle className="w-4 h-4" />
                 <span>Hızlı İş Kaydı</span>
               </button>
+            </div>
+
+            {/* FİNANSAL KASA ÖZET KARTLARI */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase">Toplam Ciro</span>
+                <div className="text-xl font-black text-slate-900">{totalRevenue} TL</div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase">Tahsil Edilen</span>
+                <div className="text-xl font-black text-emerald-600">{totalCollected} TL</div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase">Personel Hakedişleri</span>
+                <div className="text-xl font-black text-blue-600">{totalHakedis} TL</div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase">Net Kâr</span>
+                <div className={`text-xl font-black ${netProfit >= 0 ? 'text-purple-600' : 'text-rose-600'}`}>{netProfit} TL</div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -814,12 +834,12 @@ export default function App() {
                 <div className="text-2xl font-black text-emerald-600">{completedJobsCount} İş</div>
               </div>
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-xs font-bold text-slate-400 uppercase">Toplam Ciro</span>
-                <div className="text-2xl font-black text-blue-600">{totalRevenue} TL</div>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-xs font-bold text-slate-400 uppercase">Müşteri Sayısı</span>
                 <div className="text-2xl font-black text-purple-600">{customers.length} Kişi</div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-xs font-bold text-slate-400 uppercase">Aktif İşler</span>
+                <div className="text-2xl font-black text-amber-600">{jobs.filter(j => j.status !== 'Tamamlandı').length} İş</div>
               </div>
             </div>
 
@@ -903,14 +923,14 @@ export default function App() {
           </div>
         )}
 
-        {/* SAHA PERSONELİ 2. SAYFA: AKTİF İŞLER & ROTA AKIŞI */}
+        {/* AKTİF İŞLER SEKMESİ (YÖNETİCİ VE PERSONEL) - SADECE DEVAM EDENLER */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
               <div>
                 <h2 className="text-lg font-bold flex items-center space-x-2">
                   <Navigation className="w-5 h-5 text-emerald-400" />
-                  <span>{currentUser.role === 'admin' ? 'Tüm Saha İş Akışı & Sıralı Rota' : 'Günün Aktif Görev Akışı & Rotam'}</span>
+                  <span>{currentUser.role === 'admin' ? 'Aktif Saha İşleri & Rota Listesi' : 'Günün Aktif Görev Akışı & Rotam'}</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">Henüz tamamlanmamış aktif işler kronolojik sırayla listelenmiştir.</p>
               </div>
@@ -924,7 +944,7 @@ export default function App() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedJobsForUser
-                .filter(job => currentUser.role === 'admin' || job.status !== 'Tamamlandı')
+                .filter(job => job.status !== 'Tamamlandı')
                 .map((job, index) => {
                   const myHakedisObj = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
                   const jobDateObj = new Date(job.date);
@@ -1091,9 +1111,73 @@ export default function App() {
                   );
                 })}
 
-              {sortedJobsForUser.filter(job => currentUser.role === 'admin' || job.status !== 'Tamamlandı').length === 0 && (
+              {sortedJobsForUser.filter(job => job.status !== 'Tamamlandı').length === 0 && (
                 <div className="col-span-2 p-8 bg-white rounded-2xl border border-slate-200 text-center text-slate-400">
                   Aktif sırada bekleyen iş bulunmuyor.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* YÖNETİCİ TAMAMLANAN İŞLER ARŞİVİ SEKMESİ */}
+        {activeTab === 'admin-completed' && currentUser.role === 'admin' && (
+          <div className="space-y-4">
+            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow">
+              <h2 className="text-lg font-bold flex items-center space-x-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <span>Tamamlanan İşler Arşivi ({jobs.filter(j => j.status === 'Tamamlandı').length})</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Biten işler aktif listeden çıkarak burada düzenli bir şekilde arşivlenir.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {jobs
+                .filter(job => job.status === 'Tamamlandı')
+                .map((job) => (
+                  <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-200 space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-lg">
+                        ✅ TAMAMLANDI
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">📅 {job.date}</span>
+                        <button onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1" title="İşi Sil">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="font-bold text-lg text-slate-900">{job.customerName}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">📍 {job.address}</p>
+                      <p className="text-xs text-emerald-700 font-medium mt-1">👷 Ekip: {formatWorkerNameMasked(job.assignedWorkers)}</p>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 text-sm">
+                      {job.items.map((item, idx) => (
+                        <div key={idx} className="py-1 flex justify-between">
+                          <span className="text-slate-700">{item.serviceName} x{item.qty}</span>
+                          <span className="font-medium text-slate-900">{item.qty * item.unitPrice} TL</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
+                      <div>
+                        <span className="text-slate-500">Tutar: <strong>{job.totalAmount} TL</strong></span>
+                        <span className="block text-emerald-600 font-bold">Ödeme: {job.paidAmount} TL ({job.paymentMethod})</span>
+                      </div>
+                      <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg border border-slate-200">
+                        Servis Fişi
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+              {jobs.filter(job => job.status === 'Tamamlandı').length === 0 && (
+                <div className="col-span-2 p-8 bg-white rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
+                  Henüz tamamlanmış ve arşive düşmüş bir iş bulunmuyor.
                 </div>
               )}
             </div>
@@ -1577,30 +1661,6 @@ export default function App() {
                     </button>
                   </div>
                 ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* KASA SEKMESİ */}
-        {activeTab === 'finance' && currentUser.role === 'admin' && (
-          <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold text-slate-400 uppercase">Toplam Ciro</span>
-                <div className="text-xl font-black text-slate-900 mt-1">{totalRevenue} TL</div>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold text-slate-400 uppercase">Tahsil Edilen</span>
-                <div className="text-xl font-black text-emerald-600 mt-1">{totalCollected} TL</div>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold text-slate-400 uppercase">Personel Hakedişleri</span>
-                <div className="text-xl font-black text-blue-600 mt-1">{totalHakedis} TL</div>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                <span className="text-xs font-bold text-slate-400 uppercase">Net Kâr</span>
-                <div className="text-xl font-black text-purple-600 mt-1">{netProfit} TL</div>
               </div>
             </div>
           </div>
