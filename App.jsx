@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
-const SUPABASE_KEY = "sb_publishable_506jwPoEvILEU07Xad7zEA_ywR6FixZ";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzbW1wenRnbWtldXloenViYmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwODE2MjYsImV4cCI6MjEwODY1NzYyNn0.G_GvzaWPl7i4DR9Yo-j3Kuk2ykq5_h5hGDROmB7zBNc";
 
 // Mobil ağlarda (hücresel veri) takılmayı ve askıda kalmayı önleyen zaman aşımı korumalı fetch fonksiyonu
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
