@@ -194,7 +194,6 @@ export default function App() {
   const [jobTime, setJobTime] = useState('10:00');
   
   const [selectedWorkers, setSelectedWorkers] = useState([]);
-  const [workerHakedisMap, setWorkerHakedisMap] = useState({});
 
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerPin, setNewWorkerPin] = useState('');
@@ -372,11 +371,18 @@ export default function App() {
       return;
     }
 
-    const workerHakedisDetails = selectedWorkers.map(wName => ({
+    // YENİ FİNANSAL KURGU: %10 Kimyasal, %10 Amortisman, Kalan %80 (veya toplamın 8/10'u) Personele paylaştırılır.
+    const chemFund = finalTotal * 0.10;
+    const amortFund = finalTotal * 0.10;
+    const totalWorkerPool = finalTotal * 0.80;
+
+    const workerCount = selectedWorkers.length > 0 ? selectedWorkers.length : 1;
+    const perWorkerShare = totalWorkerPool / workerCount;
+
+    const workerHakedisDetails = (selectedWorkers.length > 0 ? selectedWorkers : (workers[0] ? [workers[0].name] : ['Saha Ekibi'])).map(wName => ({
       workerName: wName,
-      amount: Number(workerHakedisMap[wName]) || 300
+      amount: Math.round(perWorkerShare * 100) / 100
     }));
-    const totalWorkerHakedis = workerHakedisDetails.reduce((acc, curr) => acc + curr.amount, 0);
 
     const newJobObj = {
       id: `JOB-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -390,13 +396,15 @@ export default function App() {
       discountType,
       discountValue: Number(discountValue) || 0,
       totalAmount: finalTotal,
+      chemFund: Math.round(chemFund * 100) / 100,
+      amortFund: Math.round(amortFund * 100) / 100,
       paidAmount: Number(paidAmount) || 0,
       status: 'Sırada / Randevu',
       date: jobDate,
       time: jobTime,
       assignedWorkers: selectedWorkers.length > 0 ? selectedWorkers : (workers[0] ? [workers[0].name] : ['Saha Ekibi']),
       workerHakedisDetails: workerHakedisDetails,
-      workerHakedis: totalWorkerHakedis,
+      workerHakedis: Math.round(totalWorkerPool * 100) / 100,
       kvkkApproved: kvkkChecked,
       paymentMethod: 'Bekliyor',
       completedByWorker: false
@@ -605,11 +613,15 @@ export default function App() {
     setNewService({ name: '', price: '', unit: 'adet' });
   };
 
+  // FİNANSAL HESAPLAMALAR (%10 Kimyasal, %10 Amortisman, Kalan Personel ve Net Kâr)
   const totalRevenue = jobs.reduce((acc, j) => acc + j.totalAmount, 0);
   const totalCollected = jobs.reduce((acc, j) => acc + j.paidAmount, 0);
-  const totalHakedis = jobs.reduce((acc, j) => acc + (j.workerHakedis || 0), 0);
-  const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
-  const netProfit = totalCollected - totalExpenses - totalHakedis;
+  const totalChemFund = jobs.reduce((acc, j) => acc + (j.chemFund || (j.totalAmount * 0.10)), 0);
+  const totalAmortFund = jobs.reduce((acc, j) => acc + (j.amortFund || (j.totalAmount * 0.10)), 0);
+  const totalHakedis = jobs.reduce((acc, j) => acc + (j.workerHakedis || (j.totalAmount * 0.80)), 0);
+  
+  // Net İşletme Kârı = Tahsil Edilen - Kimyasal Fonu - Amortisman Fonu - Personel Hakedişleri
+  const netProfit = totalCollected - totalChemFund - totalAmortFund - totalHakedis;
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayJobsCount = jobs.filter(j => j.date === todayStr).length;
@@ -724,7 +736,7 @@ export default function App() {
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
             
-            {/* YÖNETİCİ SEKMELERİ (KASA VE DASHBOARD BİRLEŞTİRİLDİ, TAMAMLANAN İŞLER EKLENDİ) */}
+            {/* YÖNETİCİ SEKMELERİ */}
             {currentUser.role === 'admin' && (
               <>
                 <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
@@ -804,23 +816,27 @@ export default function App() {
               </button>
             </div>
 
-            {/* FİNANSAL KASA ÖZET KARTLARI */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-xs font-bold text-slate-400 uppercase">Toplam Ciro</span>
-                <div className="text-xl font-black text-slate-900">{totalRevenue} TL</div>
+            {/* FİNANSAL KASA ÖZET KARTLARI (%10 Kimyasal, %10 Amortisman, %80 Personel, Net Kâr) */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Tahsil Edilen</span>
+                <div className="text-lg font-black text-emerald-600">{totalCollected} TL</div>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-xs font-bold text-slate-400 uppercase">Tahsil Edilen</span>
-                <div className="text-xl font-black text-emerald-600">{totalCollected} TL</div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Kimyasal (%10)</span>
+                <div className="text-lg font-black text-blue-600">{Math.round(totalChemFund)} TL</div>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-xs font-bold text-slate-400 uppercase">Personel Hakedişleri</span>
-                <div className="text-xl font-black text-blue-600">{totalHakedis} TL</div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Amortisman (%10)</span>
+                <div className="text-lg font-black text-amber-600">{Math.round(totalAmortFund)} TL</div>
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                <span className="text-xs font-bold text-slate-400 uppercase">Net Kâr</span>
-                <div className={`text-xl font-black ${netProfit >= 0 ? 'text-purple-600' : 'text-rose-600'}`}>{netProfit} TL</div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Personel Hakediş</span>
+                <div className="text-lg font-black text-indigo-600">{Math.round(totalHakedis)} TL</div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1 col-span-2 sm:col-span-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Net İşletme Kârı</span>
+                <div className={`text-lg font-black ${netProfit >= 0 ? 'text-purple-600' : 'text-rose-600'}`}>{Math.round(netProfit)} TL</div>
               </div>
             </div>
 
@@ -899,7 +915,7 @@ export default function App() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                     <span className="text-xs font-bold text-slate-400 uppercase">Toplam Hakediş (Kazanç)</span>
-                    <div className="text-2xl font-black text-emerald-600">{myTotalEarnings} TL</div>
+                    <div className="text-2xl font-black text-emerald-600">{Math.round(myTotalEarnings)} TL</div>
                   </div>
                   <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                     <span className="text-xs font-bold text-slate-400 uppercase">Tamamlanan İşler</span>
@@ -1030,7 +1046,7 @@ export default function App() {
 
                         {currentUser.role === 'admin' && job.workerHakedisDetails && job.workerHakedisDetails.length > 0 && (
                           <div className="text-[11px] bg-blue-50 border border-blue-200 text-blue-900 p-2 rounded-lg space-y-0.5">
-                            <span className="font-bold">💰 Personel Hakedişleri:</span>
+                            <span className="font-bold">💰 Personel Hakedişleri (%80 Paylaşım):</span>
                             {job.workerHakedisDetails.map((wh, wIdx) => (
                               <div key={wIdx} className="flex justify-between">
                                 <span>• {wh.workerName}:</span>
@@ -1308,7 +1324,7 @@ export default function App() {
                   <input type="text" required placeholder="Örn: 05321234567" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller ve Hakedişleri *</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller (Otomatik Paylaşılır) *</label>
                   <div className="border border-slate-300 rounded-xl p-3 bg-white space-y-2 max-h-44 overflow-y-auto">
                     {workers.map(w => {
                       const isChecked = selectedWorkers.includes(w.name);
@@ -1326,18 +1342,6 @@ export default function App() {
                             />
                             <span>{w.name}</span>
                           </label>
-                          {isChecked && (
-                            <div className="pl-6 flex items-center space-x-2">
-                              <span className="text-[11px] text-slate-500">Hakediş (TL):</span>
-                              <input 
-                                type="number" 
-                                placeholder="Örn: 1000"
-                                value={workerHakedisMap[w.name] !== undefined ? workerHakedisMap[w.name] : 300}
-                                onChange={(e) => setWorkerHakedisMap({ ...workerHakedisMap, [w.name]: e.target.value })}
-                                className="border border-slate-300 rounded-lg px-2 py-1 text-xs w-28 bg-slate-50 font-bold text-emerald-700"
-                              />
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -1412,13 +1416,21 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <div className="pt-3 border-t border-emerald-200 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs text-slate-500">Ara Toplam: {subtotal} TL</p>
-                    {discountType !== 'none' && <p className="text-xs text-rose-600">İndirim: -{calculatedDiscount} TL</p>}
+                <div className="pt-3 border-t border-emerald-200 text-xs space-y-1">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Kimyasal Fonu (%10):</span>
+                    <strong className="text-blue-700">{Math.round(finalTotal * 0.10)} TL</strong>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-slate-500 block">Genel Toplam</span>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Amortisman Fonu (%10):</span>
+                    <strong className="text-amber-700">{Math.round(finalTotal * 0.10)} TL</strong>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Personel Havuzu (%80):</span>
+                    <strong className="text-indigo-700">{Math.round(finalTotal * 0.80)} TL</strong>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t border-emerald-200">
+                    <span className="font-bold text-slate-800">Genel Toplam:</span>
                     <span className="text-2xl font-black text-emerald-700">{finalTotal} TL</span>
                   </div>
                 </div>
