@@ -79,7 +79,6 @@ const DEFAULT_SERVICES = [
 const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]*,
 Evinizde/iş yerinizde hijyeni her zaman en üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨
 Periyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, bu mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.
-_(Yasal Bilgilendirme: 6698 sayılı Kişisel Verilerin Korunması Kanunu uyarınca, veri sorumlusu sıfatıyla kimlik, iletişim ve hizmet lokasyonu verileriniz yalnızca randevu operasyonlarının yürütülmesi ve periyodik bakım hatırlatmalarının yapılabilmesi amacıyla işlenmektedir.)_
 Sağlıklı ve hijyenik günler dileriz.
 Pevuno Solution`;
 
@@ -182,7 +181,6 @@ export default function App() {
   const [jobTime, setJobTime] = useState('10:00');
   
   const [selectedWorkers, setSelectedWorkers] = useState([]);
-  // Her personelin hakedişini tutacak obje yapısı: { "Bahadır": 1000, "Yunus": 900 }
   const [workerHakedisMap, setWorkerHakedisMap] = useState({});
 
   const [newWorkerName, setNewWorkerName] = useState('');
@@ -347,7 +345,6 @@ export default function App() {
       return;
     }
 
-    // Seçilen personellerin hakedişlerini topla veya tek tek kaydet
     const workerHakedisDetails = selectedWorkers.map(wName => ({
       workerName: wName,
       amount: Number(workerHakedisMap[wName]) || 300
@@ -372,9 +369,9 @@ export default function App() {
       time: jobTime,
       assignedWorkers: selectedWorkers.length > 0 ? selectedWorkers : (workers[0] ? [workers[0].name] : ['Saha Ekibi']),
       workerHakedisDetails: workerHakedisDetails,
-      workerHakedis: totalWorkerHakedis, // Toplam hakediş
+      workerHakedis: totalWorkerHakedis,
       kvkkApproved: kvkkChecked,
-      paymentMethod: 'Elden (Saha)',
+      paymentMethod: 'Bekliyor',
       completedByWorker: false
     };
 
@@ -430,10 +427,9 @@ export default function App() {
       paymentMethod: payMethod,
       paidAmount: j.totalAmount 
     } : j));
-    alert('İş tamamlandı ve yöneticiye bildirildi!');
+    alert('İş tamamlandı, ödeme yöntemi kaydedildi ve yöneticiye bildirildi!');
   };
 
-  // MÜŞTERİYE GÖNDERİLECEK KURUMSAL RANDEVU ONAY MESAJI
   const sendWhatsAppAppointmentConfirmation = (job) => {
     const assignedText = formatWorkerNameMasked(job.assignedWorkers);
     let msg = `Merhaba *${job.customerName}*,\n\n`;
@@ -523,7 +519,7 @@ export default function App() {
       msg += `\n🏷️ İndirim: -${job.subtotal - job.totalAmount} TL`;
     }
     msg += `\n💳 *Toplam Tutar:* ${job.totalAmount} TL`;
-    msg += `\n💵 *Ödenen:* ${job.paidAmount} TL`;
+    msg += `\n💵 *Ödenen:* ${job.paidAmount} TL (${job.paymentMethod})`;
     msg += `\n📌 *Kalan Bakiye:* ${remaining > 0 ? `${remaining} TL` : 'Ödendi ✅'}\n\n`;
     msg += `Hizmetimizden memnun kaldıysanız Google üzerinden yorum bırakarak destek olabilirsiniz:\n⭐ ${reviewLink}\n\n`;
     msg += `Teşekkür ederiz! 🧼🚿`;
@@ -538,7 +534,7 @@ export default function App() {
     let msg = `Merhaba *${cust.name}*,\n\n`;
     msg += `🌿 *PEVUNO SOLUTION* ailesi olarak sağlıklı günler dileriz.\n`;
     if (daysPassed) {
-      msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden *${daysPassed} gün (yaklaşık 6 ay)* geçti. Periyodik koltuk yıkama zamanınız gelmiştir.\n\n`;
+      msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden *${daysPassed} gün* geçti. Periyodik koltuk yıkama zamanınız gelmiştir.\n\n`;
     } else {
       msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden yaklaşık 6 ay geçti. Periyodik koltuk yıkama zamanınız gelmiştir.\n\n`;
     }
@@ -736,6 +732,7 @@ export default function App() {
           </div>
         )}
 
+        {/* İŞ LİSTESİ */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -750,128 +747,160 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {jobs
                 .filter(j => currentUser.role === 'admin' || j.assignedWorkers?.includes(currentUser.name))
-                .map((job) => (
-                <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4 hover:shadow-md transition">
-                  <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">{job.id}</span>
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-200">
-                          📅 {job.date} | ⏰ {job.time || '10:00'}
-                        </span>
-                        {job.kvkkApproved && (
-                          <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold border border-emerald-200 flex items-center">
-                            <ShieldCheck className="w-3 h-3 mr-1" /> KVKK
-                          </span>
+                .map((job) => {
+                  // Personel kendi ekranındaysa kendi hakedişini görsün
+                  const myHakedisObj = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+
+                  return (
+                    <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4 hover:shadow-md transition">
+                      <div className="flex justify-between items-start border-b border-slate-100 pb-3">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">{job.id}</span>
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-200">
+                              📅 {job.date} | ⏰ {job.time || '10:00'}
+                            </span>
+                            {job.kvkkApproved && (
+                              <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold border border-emerald-200 flex items-center">
+                                <ShieldCheck className="w-3 h-3 mr-1" /> KVKK
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-bold text-lg text-slate-900 mt-1">{job.customerName}</h3>
+                          {job.companyName && <p className="text-xs text-slate-500 font-medium">🏢 {job.companyName}</p>}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <select
+                            value={job.status}
+                            onChange={(e) => updateJobStatus(job.id, e.target.value)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
+                              job.status === 'Tamamlandı' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                              job.status === 'İşlem Yapılıyor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                              job.status === 'Yolda / Adreste' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                              'bg-slate-100 text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            <option value="Sırada / Randevu">⏳ Sırada</option>
+                            <option value="Yolda / Adreste">🚗 Yolda</option>
+                            <option value="İşlem Yapılıyor">🧼 Temizlikte</option>
+                            <option value="Tamamlandı">✅ Bitti</option>
+                          </select>
+                          {currentUser.role === 'admin' && (
+                            <button onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1" title="İşi Sil">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-sm space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-2 text-slate-700">
+                            <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <span>{job.address}</span>
+                          </div>
+                          <a href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer" className="bg-white border border-slate-200 text-xs font-semibold px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 shrink-0 shadow-sm">
+                            Yol Tarifi
+                          </a>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 text-xs text-slate-600">
+                          <div className="flex items-center space-x-1">
+                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                            <a href={`tel:${job.phone}`} className="hover:underline font-mono">{job.phone}</a>
+                          </div>
+                          <div className="bg-slate-200/70 px-2 py-0.5 rounded font-medium">
+                            👷 Ekip: <strong>{formatWorkerNameMasked(job.assignedWorkers)}</strong>
+                          </div>
+                        </div>
+
+                        {/* Admin için tüm hakedişler, Personel için kendi hakedişi */}
+                        {currentUser.role === 'admin' && job.workerHakedisDetails && job.workerHakedisDetails.length > 0 && (
+                          <div className="text-[11px] bg-blue-50 border border-blue-200 text-blue-900 p-2 rounded-lg space-y-0.5">
+                            <span className="font-bold">💰 Personel Hakedişleri:</span>
+                            {job.workerHakedisDetails.map((wh, wIdx) => (
+                              <div key={wIdx} className="flex justify-between">
+                                <span>• {wh.workerName}:</span>
+                                <span className="font-bold">{wh.amount} TL</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {currentUser.role === 'worker' && myHakedisObj && (
+                          <div className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-900 p-2 rounded-lg font-bold flex justify-between">
+                            <span>💰 Bu İşten Alacağın Hakediş:</span>
+                            <span className="text-emerald-700 text-sm">{myHakedisObj.amount} TL</span>
+                          </div>
                         )}
                       </div>
-                      <h3 className="font-bold text-lg text-slate-900 mt-1">{job.customerName}</h3>
-                      {job.companyName && <p className="text-xs text-slate-500 font-medium">🏢 {job.companyName}</p>}
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <select
-                        value={job.status}
-                        onChange={(e) => updateJobStatus(job.id, e.target.value)}
-                        className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
-                          job.status === 'Tamamlandı' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                          job.status === 'İşlem Yapılıyor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                          job.status === 'Yolda / Adreste' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                          'bg-slate-100 text-slate-700 border-slate-300'
-                        }`}
-                      >
-                        <option value="Sırada / Randevu">⏳ Sırada</option>
-                        <option value="Yolda / Adreste">🚗 Yolda</option>
-                        <option value="İşlem Yapılıyor">🧼 Temizlikte</option>
-                        <option value="Tamamlandı">✅ Bitti</option>
-                      </select>
-                      {currentUser.role === 'admin' && (
-                        <button onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1" title="İşi Sil">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-sm space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-2 text-slate-700">
-                        <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{job.address}</span>
-                      </div>
-                      <a href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer" className="bg-white border border-slate-200 text-xs font-semibold px-2.5 py-1 rounded-lg text-slate-700 hover:bg-slate-100 shrink-0 shadow-sm">
-                        Yol Tarifi
-                      </a>
-                    </div>
-                    <div className="flex items-center justify-between pt-1 text-xs text-slate-600">
-                      <div className="flex items-center space-x-1">
-                        <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                        <a href={`tel:${job.phone}`} className="hover:underline font-mono">{job.phone}</a>
-                      </div>
-                      <div className="bg-slate-200/70 px-2 py-0.5 rounded font-medium">
-                        👷 Ekip: <strong>{formatWorkerNameMasked(job.assignedWorkers)}</strong>
-                      </div>
-                    </div>
-                    {/* Personel bazlı hakedişleri göster */}
-                    {currentUser.role === 'admin' && job.workerHakedisDetails && job.workerHakedisDetails.length > 0 && (
-                      <div className="text-[11px] bg-blue-50 border border-blue-200 text-blue-900 p-2 rounded-lg space-y-0.5">
-                        <span className="font-bold">💰 Personel Hakedişleri:</span>
-                        {job.workerHakedisDetails.map((wh, wIdx) => (
-                          <div key={wIdx} className="flex justify-between">
-                            <span>• {wh.workerName}:</span>
-                            <span className="font-bold">{wh.amount} TL</span>
+
+                      <div className="divide-y divide-slate-100 text-sm">
+                        {job.items.map((item, idx) => (
+                          <div key={idx} className="py-1 flex justify-between">
+                            <span className="text-slate-700">{item.serviceName} x{item.qty}</span>
+                            <span className="font-medium text-slate-900">{item.qty * item.unitPrice} TL</span>
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
-                  <div className="divide-y divide-slate-100 text-sm">
-                    {job.items.map((item, idx) => (
-                      <div key={idx} className="py-1 flex justify-between">
-                        <span className="text-slate-700">{item.serviceName} x{item.qty}</span>
-                        <span className="font-medium text-slate-900">{item.qty * item.unitPrice} TL</span>
+
+                      <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-sm">
+                        <div>
+                          <span className="text-slate-500 text-xs">Toplam: </span>
+                          <span className="font-extrabold text-base text-slate-900">{job.totalAmount} TL</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs block text-slate-500">Ödeme Durumu</span>
+                          <span className="text-xs font-bold text-emerald-600">
+                            {job.paidAmount >= job.totalAmount ? `Ödendi (${job.paymentMethod})` : 'Bekliyor'}
+                          </span>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                  <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-sm">
-                    <div>
-                      <span className="text-slate-500 text-xs">Toplam: </span>
-                      <span className="font-extrabold text-base text-slate-900">{job.totalAmount} TL</span>
-                    </div>
-                  </div>
 
-                  {currentUser.role === 'admin' && (
-                    <div className="space-y-1.5 pt-1">
-                      <button onClick={() => sendWhatsAppAppointmentConfirmation(job)} className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>📅 Müşteriye Randevu Onay Mesajı Gönder (WP)</span>
-                      </button>
-                      <button onClick={() => sendWhatsAppNotificationToWorker(job)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>👷 Çalışana WP ile İş Detayını Gönder</span>
-                      </button>
-                    </div>
-                  )}
+                      {/* PERSONEL İŞİ BİTİRME VE ÖDEME ALMA BÖLÜMÜ */}
+                      {currentUser.role === 'worker' && job.status !== 'Tamamlandı' && (
+                        <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-2">
+                          <p className="text-xs font-bold text-emerald-900">İş bitti mi? Ödemeyi nasıl aldınız?</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => handleWorkerCompleteJob(job.id, 'Elden (Saha)')} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">💵 Elden Aldım</button>
+                            <button onClick={() => handleWorkerCompleteJob(job.id, 'IBAN (Yönetici)')} className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">🏦 IBAN'a Atıldı</button>
+                          </div>
+                        </div>
+                      )}
 
-                  <div className="grid grid-cols-3 gap-1.5 pt-1">
-                    <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
-                      <Send className="w-3 h-3" />
-                      <span>Yola Çıkıldı</span>
-                    </button>
-                    <button onClick={() => sendWhatsAppCompletion(job)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
-                      <MessageSquare className="w-3 h-3" />
-                      <span>Servis Bitti</span>
-                    </button>
-                    <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 border border-slate-200 transition">
-                      <FileText className="w-3 h-3" />
-                      <span>Servis Fişi</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      {currentUser.role === 'admin' && (
+                        <div className="space-y-1.5 pt-1">
+                          <button onClick={() => sendWhatsAppAppointmentConfirmation(job)} className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>📅 Müşteriye Randevu Onay Mesajı Gönder (WP)</span>
+                          </button>
+                          <button onClick={() => sendWhatsAppNotificationToWorker(job)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>👷 Çalışana WP ile İş Detayını Gönder</span>
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-1.5 pt-1">
+                        <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                          <Send className="w-3 h-3" />
+                          <span>Yola Çıkıldı</span>
+                        </button>
+                        <button onClick={() => sendWhatsAppCompletion(job)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                          <MessageSquare className="w-3 h-3" />
+                          <span>Servis Bitti</span>
+                        </button>
+                        <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 border border-slate-200 transition">
+                          <FileText className="w-3 h-3" />
+                          <span>Servis Fişi</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI & PERSONEL HAKEDİŞLERİ */}
+        {/* YENİ İŞ KAYDI */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
@@ -881,7 +910,7 @@ export default function App() {
             <form onSubmit={handleCreateJob} className="space-y-6">
               
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Kayıtlı Müşteri Ara ve Seç (1000+ Müşteri Arama Desteği)</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Kayıtlı Müşteri Ara ve Seç</label>
                 <div className="relative">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
