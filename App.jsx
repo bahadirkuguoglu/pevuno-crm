@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
-  MessageSquare, DollarSign, Edit3, Trash2, 
+  MessageSquare, DollarSign, Edit3, Trash2, Search,
   FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send, UserCheck, LayoutDashboard, UserCheck2
 } from 'lucide-react';
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzbW1wenRnbWtldXloenViYmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwODE2MjYsImV4cCI6MjEwODY1NzYyNn0.G_GvzaWPl7i4DR9Yo-j3Kuk2ykq5_h5hGDROmB7zBNc";
 
-// Mobil ağlarda (hücresel veri) takılmayı ve askıda kalmayı önleyen zaman aşımı korumalı fetch fonksiyonu
+// Mobil ağlarda zaman aşımı korumalı fetch fonksiyonu
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -96,7 +96,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [isSynced, setIsSynced] = useState(false);
 
-  // Yerel Hafıza Destekli State Yönetimi
+  // State Yönetimleri
   const [services, setServices] = useState(() => {
     const saved = localStorage.getItem('pevuno_services');
     return saved ? JSON.parse(saved) : DEFAULT_SERVICES;
@@ -123,7 +123,10 @@ export default function App() {
   });
   const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
 
-  // Güçlendirilmiş Bulut Senkronizasyonu
+  // Müşteri Arama State'i (Yeni İş Kaydı İçin)
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+
+  // Bulut Senkronizasyonu
   const syncWithCloud = async () => {
     setIsSynced(false);
     try {
@@ -227,6 +230,16 @@ export default function App() {
     }).join(', ');
   };
 
+  // Son Temizlik Tarihinden Kaç Gün Geçtiğini Hesaplayan Yardımcı Fonksiyon
+  const getDaysSinceLastJob = (lastJobDate) => {
+    if (!lastJobDate || lastJobDate === 'Yeni' || lastJobDate === 'Yeni Eklenen') return null;
+    const lastDate = new Date(lastJobDate);
+    if (isNaN(lastDate.getTime())) return null;
+    const today = new Date();
+    const diffTime = Math.abs(today - lastDate);
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  };
+
   const subtotal = selectedItems.reduce((acc, item) => acc + (item.qty * item.unitPrice), 0);
   const calculateDiscount = () => {
     if (discountType === 'amount') return Number(discountValue) || 0;
@@ -313,23 +326,21 @@ export default function App() {
     }
   };
 
-  const handleSelectCustomerFromDropdown = (custId) => {
-    setSelectedExistingCustomer(custId);
-    if (!custId) {
+  const handleSelectCustomerFromDropdown = (cust) => {
+    if (!cust) {
+      setSelectedExistingCustomer('');
       setNewCustomerName('');
       setNewCustomerPhone('');
       setNewCompany('');
       return;
     }
-    const cust = customers.find(c => c.id === custId);
-    if (cust) {
-      setNewCustomerName(cust.name);
-      setNewCustomerPhone(cust.phone);
-      setNewCompany(cust.company || '');
-      setKvkkChecked(cust.kvkk || false);
-      if (cust.addresses && cust.addresses.length > 0) {
-        setNewAddress(cust.addresses[0]);
-      }
+    setSelectedExistingCustomer(cust.id);
+    setNewCustomerName(cust.name);
+    setNewCustomerPhone(cust.phone);
+    setNewCompany(cust.company || '');
+    setKvkkChecked(cust.kvkk || false);
+    if (cust.addresses && cust.addresses.length > 0) {
+      setNewAddress(cust.addresses[0]);
     }
   };
 
@@ -421,10 +432,8 @@ export default function App() {
       alert('Bu işe henüz personel atanmamış!');
       return;
     }
-    
     const workerName = job.assignedWorkers[0];
     const workerObj = workers.find(w => w.name === workerName);
-    
     let targetPhone = workerObj?.phone || '';
     if (!targetPhone) {
       const manualPhone = prompt(`${workerName} için telefon numarası girin (Örn: 0532...):`);
@@ -498,9 +507,14 @@ export default function App() {
   };
 
   const sendSixMonthReminder = (cust) => {
+    const daysPassed = getDaysSinceLastJob(cust.lastJobDate);
     let msg = `Merhaba *${cust.name}*,\n\n`;
     msg += `🌿 *PEVUNO SOLUTION* ailesi olarak sağlıklı günler dileriz.\n`;
-    msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden yaklaşık 6 ay geçti. Periyodik koltuk yıkama zamanınız yaklaşmıştır.\n\n`;
+    if (daysPassed) {
+      msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden *${daysPassed} gün (yaklaşık 6 ay)* geçti. Periyodik koltuk yıkama zamanınız gelmiştir.\n\n`;
+    } else {
+      msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden yaklaşık 6 ay geçti. Periyodik koltuk yıkama zamanınız gelmiştir.\n\n`;
+    }
     msg += `Randevu oluşturmamızı ister misiniz? 🧼✨`;
     const encoded = encodeURIComponent(msg);
     const cleanPhone = cust.phone.replace(/\D/g, '');
@@ -525,9 +539,24 @@ export default function App() {
   const totalHakedis = jobs.reduce((acc, j) => acc + (j.workerHakedis || 0), 0);
   const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
   const netProfit = totalCollected - totalExpenses - totalHakedis;
+
   const todayStr = new Date().toISOString().split('T')[0];
   const todayJobsCount = jobs.filter(j => j.date === todayStr).length;
   const completedJobsCount = jobs.filter(j => j.status === 'Tamamlandı').length;
+
+  // Filtrelenmiş Müşteri Arama Listesi
+  const filteredCustomersForJob = customers.filter(c => 
+    c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+    c.phone.includes(customerSearchQuery) ||
+    (c.company && c.company.toLowerCase().includes(customerSearchQuery.toLowerCase()))
+  );
+
+  // 180 Gün (6 Ay) ve Üzeri Süre Geçmiş KVKK Onaylı Müşteriler
+  const reminderEligibleCustomers = customers.filter(c => {
+    if (!c.kvkk) return false;
+    const days = getDaysSinceLastJob(c.lastJobDate);
+    return days !== null && days >= 180;
+  });
 
   if (!currentUser) {
     return (
@@ -589,7 +618,6 @@ export default function App() {
               <p className="text-[11px] text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name}</strong></p>
             </div>
           </div>
-
           <div className="flex items-center space-x-2 shrink-0">
             <button 
               onClick={syncWithCloud} 
@@ -605,7 +633,6 @@ export default function App() {
             </button>
           </div>
         </div>
-
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
             {currentUser.role === 'admin' && (
@@ -679,41 +706,6 @@ export default function App() {
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-xs font-bold text-slate-400 uppercase">Müşteri Sayısı</span>
                 <div className="text-2xl font-black text-purple-600">{customers.length} Kişi</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-emerald-600" />
-                  <span>Yaklaşan Son İşler</span>
-                </h3>
-                <div className="divide-y divide-slate-100 text-xs">
-                  {jobs.slice(0, 4).map(j => (
-                    <div key={j.id} className="py-2.5 flex justify-between items-center">
-                      <div>
-                        <span className="font-bold text-slate-800">{j.customerName}</span>
-                        <p className="text-[11px] text-slate-400">{j.date} | {j.time || '10:00'}</p>
-                      </div>
-                      <span className="bg-slate-100 px-2 py-1 rounded font-semibold text-slate-700">{j.totalAmount} TL</span>
-                    </div>
-                  ))}
-                  {jobs.length === 0 && <p className="text-slate-400 py-2">Henüz iş kaydı bulunmuyor.</p>}
-                </div>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-                  <Users className="w-4 h-4 text-emerald-600" />
-                  <span>Aktif Saha Ekibi ({workers.length})</span>
-                </h3>
-                <div className="divide-y divide-slate-100 text-xs">
-                  {workers.map(w => (
-                    <div key={w.id} className="py-2.5 flex justify-between items-center">
-                      <span className="font-bold text-slate-800">{w.name}</span>
-                      <span className="text-slate-400 font-mono">Tel: {w.phone || 'Girilmedi'}</span>
-                    </div>
-                  ))}
-                  {workers.length === 0 && <p className="text-slate-400 py-2">Henüz eklenen personel yok.</p>}
-                </div>
               </div>
             </div>
           </div>
@@ -793,54 +785,21 @@ export default function App() {
                         👷 Ekip: <strong>{formatWorkerNameMasked(job.assignedWorkers)}</strong>
                       </div>
                     </div>
-                    {job.note && (
-                      <div className="mt-1 text-xs bg-amber-50 border border-amber-200 text-amber-900 p-2 rounded-lg">
-                        📌 <strong>Not:</strong> {job.note}
-                      </div>
-                    )}
                   </div>
-                  <div className="space-y-1">
-                    <div className="divide-y divide-slate-100 text-sm">
-                      {job.items.map((item, idx) => (
-                        <div key={idx} className="py-1 flex justify-between">
-                          <span className="text-slate-700">{item.serviceName} x{item.qty}</span>
-                          <span className="font-medium text-slate-900">{item.qty * item.unitPrice} TL</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="divide-y divide-slate-100 text-sm">
+                    {job.items.map((item, idx) => (
+                      <div key={idx} className="py-1 flex justify-between">
+                        <span className="text-slate-700">{item.serviceName} x{item.qty}</span>
+                        <span className="font-medium text-slate-900">{item.qty * item.unitPrice} TL</span>
+                      </div>
+                    ))}
                   </div>
                   <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-sm">
                     <div>
                       <span className="text-slate-500 text-xs">Toplam: </span>
                       <span className="font-extrabold text-base text-slate-900">{job.totalAmount} TL</span>
-                      {currentUser.role === 'admin' && (
-                        <span className="text-xs text-blue-600 block font-medium">Personel Hakedişi: {job.workerHakedis} TL</span>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs block text-slate-500">Ödeme Durumu</span>
-                      <span className="text-xs font-bold text-emerald-600">
-                        {job.paidAmount >= job.totalAmount ? `Ödendi (${job.paymentMethod})` : 'Bekliyor'}
-                      </span>
                     </div>
                   </div>
-                  {currentUser.role === 'worker' && job.status !== 'Tamamlandı' && (
-                    <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-2">
-                      <p className="text-xs font-bold text-emerald-900">İş bitti mi? Ödemeyi nasıl aldınız?</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button onClick={() => handleWorkerCompleteJob(job.id, 'Elden (Saha)')} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">💵 Elden Aldım</button>
-                        <button onClick={() => handleWorkerCompleteJob(job.id, 'IBAN (Yönetici)')} className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">🏦 IBAN'a Atıldı</button>
-                      </div>
-                    </div>
-                  )}
-                  {currentUser.role === 'admin' && (
-                    <div className="pt-1">
-                      <button onClick={() => sendWhatsAppNotificationToWorker(job)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition mb-2">
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>👷 Çalışana WP ile İş Detayını Gönder</span>
-                      </button>
-                    </div>
-                  )}
                   <div className="grid grid-cols-3 gap-1.5 pt-1">
                     <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
                       <Send className="w-3 h-3" />
@@ -861,6 +820,7 @@ export default function App() {
           </div>
         )}
 
+        {/* YENİ İŞ KAYDI & CANLI MÜŞTERİ ARAMA */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
@@ -868,19 +828,52 @@ export default function App() {
               <span>Yeni Müşteri & İş Randevusu Oluştur</span>
             </h2>
             <form onSubmit={handleCreateJob} className="space-y-6">
+              
+              {/* CANLI ARAMA KUTUSU */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Kayıtlı Müşterilerden Seç (Opsiyonel)</label>
-                <select
-                  value={selectedExistingCustomer}
-                  onChange={(e) => handleSelectCustomerFromDropdown(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-white"
-                >
-                  <option value="">-- Yeni Müşteri Ekle veya Kayıtlı Seç --</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.phone}) {c.company ? `- ${c.company}` : ''}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Kayıtlı Müşteri Ara ve Seç (1000+ Müşteri Arama Desteği)</label>
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    placeholder="Müşteri adı, telefon veya firma yazın..."
+                    value={customerSearchQuery}
+                    onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-sm bg-white"
+                  />
+                </div>
+
+                {customerSearchQuery && (
+                  <div className="max-h-48 overflow-y-auto border border-slate-200 bg-white rounded-xl divide-y divide-slate-100 shadow-sm">
+                    {filteredCustomersForJob.map(cust => (
+                      <div 
+                        key={cust.id} 
+                        onClick={() => {
+                          handleSelectCustomerFromDropdown(cust);
+                          setCustomerSearchQuery('');
+                        }}
+                        className="p-2.5 hover:bg-emerald-50 cursor-pointer flex justify-between items-center text-xs transition"
+                      >
+                        <div>
+                          <strong className="text-slate-900">{cust.name}</strong>
+                          {cust.company && <span className="text-slate-500 font-normal ml-1">({cust.company})</span>}
+                        </div>
+                        <span className="font-mono text-emerald-600">{cust.phone}</span>
+                      </div>
+                    ))}
+                    {filteredCustomersForJob.length === 0 && (
+                      <div className="p-3 text-xs text-slate-400 text-center">Eşleşen müşteri bulunamadı.</div>
+                    )}
+                  </div>
+                )}
+                {selectedExistingCustomer && (
+                  <div className="flex justify-between items-center bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs p-2.5 rounded-lg">
+                    <span>Seçilen Müşteri: <strong>{newCustomerName}</strong> ({newCustomerPhone})</span>
+                    <button type="button" onClick={() => handleSelectCustomerFromDropdown(null)} className="text-rose-600 font-bold hover:underline">Temizle</button>
+                  </div>
+                )}
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Müşteri Adı Soyadı *</label>
@@ -1025,6 +1018,7 @@ export default function App() {
           </div>
         )}
 
+        {/* MÜŞTERİLER SEKMESİ */}
         {activeTab === 'customers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1044,98 +1038,66 @@ export default function App() {
                 </div>
               </form>
             </div>
-
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-2">
               <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
                 <BookOpen className="w-6 h-6 text-emerald-600" />
                 <span>Kayıtlı Müşteri Veri Tabanı ({customers.length})</span>
               </h2>
             </div>
-
             <div className="grid grid-cols-1 gap-4">
-              {customers.map((cust) => (
-                <div key={cust.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-base text-slate-900">{cust.name} {cust.company && <span className="text-xs text-slate-500">({cust.company})</span>}</h3>
-                      <p className="text-xs text-emerald-600 font-mono mt-0.5">📞 {cust.phone}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button 
-                        onClick={() => toggleCustomerKvkkStatus(cust.id)} 
-                        className={`text-[11px] font-bold px-3 py-1.5 rounded-lg shadow border transition flex items-center space-x-1 ${
-                          cust.kvkk ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-emerald-50'
-                        }`}
-                      >
-                        <span>{cust.kvkk ? '🛡️ KVKK Onaylı (İptal Et)' : '☑️ KVKK Onayı İşaretle'}</span>
-                      </button>
-                      {!cust.kvkk && (
-                        <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow">
-                          🛡️ KVKK Onay İste (WP)
+              {customers.map((cust) => {
+                const daysPassed = getDaysSinceLastJob(cust.lastJobDate);
+                return (
+                  <div key={cust.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-base text-slate-900">{cust.name} {cust.company && <span className="text-xs text-slate-500">({cust.company})</span>}</h3>
+                        <p className="text-xs text-emerald-600 font-mono mt-0.5">📞 {cust.phone}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => toggleCustomerKvkkStatus(cust.id)} 
+                          className={`text-[11px] font-bold px-3 py-1.5 rounded-lg shadow border transition flex items-center space-x-1 ${
+                            cust.kvkk ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-emerald-50'
+                          }`}
+                        >
+                          <span>{cust.kvkk ? '🛡️ KVKK Onaylı (İptal Et)' : '☑️ KVKK Onayı İşaretle'}</span>
                         </button>
-                      )}
-                      <button onClick={() => handleDeleteCustomer(cust.id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Müşteriyi Sil">
-                        <Trash2 className="w-4 h-4" />
+                        {!cust.kvkk && (
+                          <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow">
+                            🛡️ KVKK Onay İste (WP)
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteCustomer(cust.id)} className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Müşteriyi Sil">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kayıtlı Adresler ({cust.addresses?.length || 0}):</p>
+                      {cust.addresses?.map((addr, idx) => (
+                        <p key={idx} className="text-xs text-slate-700 flex items-start space-x-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                          <span>{addr}</span>
+                        </p>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
+                      <span className="text-slate-500 font-medium">
+                        Son İşlem: {cust.lastJobDate || 'Yeni'} {daysPassed ? `(${daysPassed} gün önce)` : ''}
+                      </span>
+                      <button onClick={() => sendSixMonthReminder(cust)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow">
+                        6 Ay Hatırlatması Gönder 📲
                       </button>
                     </div>
                   </div>
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kayıtlı Adresler ({cust.addresses?.length || 0}):</p>
-                    {cust.addresses?.map((addr, idx) => (
-                      <p key={idx} className="text-xs text-slate-700 flex items-start space-x-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{addr}</span>
-                      </p>
-                    ))}
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
-                    <span className="text-slate-400">Son İşlem: {cust.lastJobDate || 'Yeni'}</span>
-                    <button onClick={() => sendSixMonthReminder(cust)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg shadow">
-                      6 Ay Hatırlatması Gönder 📲
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
-        {activeTab === 'workers' && currentUser.role === 'admin' && (
-          <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
-                <Users className="w-6 h-6 text-emerald-600" />
-                <span>Saha Personeli & Şifre Yönetimi</span>
-              </h2>
-              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Personel Adı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Giriş PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" placeholder="Telefon (0532...)" value={newWorkerPhone} onChange={(e) => setNewWorkerPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow flex items-center justify-center space-x-1">
-                  <UserPlus className="w-4 h-4 mr-1" />
-                  <span>Personel Ekle</span>
-                </button>
-              </form>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {workers.map((w) => (
-                  <div key={w.id} className="p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{w.name}</h4>
-                      <span className="text-xs text-slate-400 font-mono">Giriş PIN: {w.pin} | Tel: {w.phone || 'Girilmedi'}</span>
-                    </div>
-                    <button onClick={() => handleDeleteWorker(w.id)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Sil">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-                {workers.length === 0 && (
-                  <div className="p-4 text-center text-xs text-slate-400">Henüz personel eklenmedi.</div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
+        {/* FİYATLAR SEKMESİ (BULUT DESTEKLİ) */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1176,6 +1138,7 @@ export default function App() {
           </div>
         )}
 
+        {/* 180 GÜN FİLTRELİ HATIRLATICILAR SEKMESİ */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1183,7 +1146,6 @@ export default function App() {
                 <ShieldCheck className="w-6 h-6 text-emerald-600" />
                 <span>WhatsApp KVKK & Onay Mesajı Şablonu Düzenle</span>
               </h2>
-              <p className="text-xs text-slate-500">Müşterilere gönderilen onay mesajını buradan dilediğin zaman değiştirebilirsin. ([Müşteri Adı] yazan yer otomatik olarak müşterinin adıyla değiştirilir).</p>
               <form onSubmit={handleSaveKvkkTemplate} className="space-y-3">
                 <textarea 
                   rows={8}
@@ -1196,31 +1158,82 @@ export default function App() {
                 </button>
               </form>
             </div>
+
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
-                <RefreshCw className="w-6 h-6 text-emerald-600" />
-                <span>6 Aylık Periyodik Temizlik Hatırlatıcıları</span>
-              </h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                  <RefreshCw className="w-6 h-6 text-emerald-600" />
+                  <span>6 Aylık (180+ Gün) Temizlik Hatırlatıcıları</span>
+                </h2>
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full">
+                  {reminderEligibleCustomers.length} Müşteri Ulaştı
+                </span>
+              </div>
+              
               <div className="space-y-2">
-                {customers.filter(c => c.kvkk).map(c => (
-                  <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm">
-                    <div>
-                      <span className="font-bold text-slate-900">{c.name}</span>
-                      <span className="text-xs text-slate-500 ml-2">({c.phone})</span>
+                {reminderEligibleCustomers.map(c => {
+                  const daysPassed = getDaysSinceLastJob(c.lastJobDate);
+                  return (
+                    <div key={c.id} className="flex items-center justify-between p-3.5 bg-amber-50/60 rounded-xl border border-amber-200 text-sm">
+                      <div>
+                        <span className="font-bold text-slate-900">{c.name}</span>
+                        <span className="text-xs text-slate-500 ml-2">({c.phone})</span>
+                        <span className="block text-xs font-semibold text-amber-800 mt-0.5">
+                          ⏳ Son Temizlik: {c.lastJobDate} ({daysPassed} gün geçti)
+                        </span>
+                      </div>
+                      <button onClick={() => sendSixMonthReminder(c)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg shadow flex items-center space-x-1">
+                        <span>Hatırlatma Gönder 📲</span>
+                      </button>
                     </div>
-                    <button onClick={() => sendSixMonthReminder(c)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow">
-                      6 Ay Hatırlatması Gönder 📲
-                    </button>
+                  );
+                })}
+                
+                {reminderEligibleCustomers.length === 0 && (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-500 text-center">
+                    Şu an için son hizmetinin üzerinden 180 gün (6 ay) geçmiş KVKK onaylı müşteri bulunmuyor.
                   </div>
-                ))}
-                {customers.filter(c => c.kvkk).length === 0 && (
-                  <p className="text-xs text-slate-400 py-2">Henüz KVKK onaylı müşteri bulunmuyor.</p>
                 )}
               </div>
             </div>
           </div>
         )}
 
+        {/* PERSONEL SEKMESİ */}
+        {activeTab === 'workers' && currentUser.role === 'admin' && (
+          <div className="space-y-6 max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                <Users className="w-6 h-6 text-emerald-600" />
+                <span>Saha Personeli & Şifre Yönetimi</span>
+              </h2>
+              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <input type="text" required placeholder="Personel Adı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Giriş PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" placeholder="Telefon (0532...)" value={newWorkerPhone} onChange={(e) => setNewWorkerPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow flex items-center justify-center space-x-1">
+                  <UserPlus className="w-4 h-4 mr-1" />
+                  <span>Personel Ekle</span>
+                </button>
+              </form>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {workers.map((w) => (
+                  <div key={w.id} className="p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">{w.name}</h4>
+                      <span className="text-xs text-slate-400 font-mono">Giriş PIN: {w.pin} | Tel: {w.phone || 'Girilmedi'}</span>
+                    </div>
+                    <button onClick={() => handleDeleteWorker(w.id)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition" title="Sil">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* KASA SEKMESİ */}
         {activeTab === 'finance' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
