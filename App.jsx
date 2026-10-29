@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzbW1wenRnbWtldXloenViYmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwODE2MjYsImV4cCI6MjEwODY1NzYyNn0.G_GvzaWPl7i4DR9Yo-j3Kuk2ykq5_h5hGDROmB7zBNc";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0cmF0dXMtZXNtbXB6dGdta2V1eWh6dWJiYWYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc5MzA4MTYyNiwiZXhwIjoyMTA4NjU3NjI2fQ.G_GvzaWPl7i4DR9Yo-j3Kuk2ykq5_h5hGDROmB7zBNc";
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   const controller = new AbortController();
@@ -79,7 +79,7 @@ const DEFAULT_SERVICES = [
 const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]*,
 Evinizde/iş yerinizde hijyeni her zaman en üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨
 Periyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, bu mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.
-Sağlıklı ve hijyenik günler dileriz.
+Sağlıklı and hijyenik günler dileriz.
 Pevuno Solution`;
 
 export default function App() {
@@ -258,7 +258,7 @@ export default function App() {
       const worker = workers.find(w => w.id === selectedWorkerId);
       if (worker && loginPin === worker.pin) {
         setCurrentUser({ role: 'worker', name: worker.name });
-        setActiveTab('jobs');
+        setActiveTab('worker-dashboard');
       } else {
         alert('Hatalı Personel Şifresi (PIN)!');
       }
@@ -432,11 +432,8 @@ export default function App() {
     alert('İş tamamlandı, ödeme yöntemi kaydedildi ve yöneticiye bildirildi!');
   };
 
-  // SERVİS FİŞİNİ RESİM (JPEG) OLARAK İNDİRME FONKSİYONU
   const downloadReceiptAsImage = () => {
     if (!receiptRef.current) return;
-    
-    // html2canvas kütüphanesini dinamik olarak yükle (sıfır maliyet, ekstra pakete gerek yok)
     if (!window.html2canvas) {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
@@ -530,7 +527,6 @@ export default function App() {
 
   const sendWhatsAppCompletion = (job) => {
     const remaining = job.totalAmount - job.paidAmount;
-    const reviewLink = "https://g.page/r/pevuno-solution/review";
     const assignedText = formatWorkerNameMasked(job.assignedWorkers);
     
     let msg = `Merhaba *${job.customerName}*,\n\n`;
@@ -548,8 +544,8 @@ export default function App() {
     msg += `\n💳 *Toplam Tutar:* ${job.totalAmount} TL`;
     msg += `\n💵 *Ödenen:* ${job.paidAmount} TL (${job.paymentMethod})`;
     msg += `\n📌 *Kalan Bakiye:* ${remaining > 0 ? `${remaining} TL` : 'Ödendi ✅'}\n\n`;
-    msg += `Hizmetimizden memnun kaldıysanız Google üzerinden yorum bırakarak destek olabilirsiniz:\n⭐ ${reviewLink}\n\n`;
     msg += `Teşekkür ederiz! 🧼🚿`;
+
     const encoded = encodeURIComponent(msg);
     const cleanPhone = job.phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
@@ -606,7 +602,6 @@ export default function App() {
     return days !== null && days >= 180;
   });
 
-  // SAHA VE YÖNETİCİ İÇİN KRONOLOJİK SIRALI AKILLI ROTA / İŞ LİSTESİ
   const sortedJobsForUser = [...jobs]
     .filter(j => currentUser?.role === 'admin' || j.assignedWorkers?.includes(currentUser?.name))
     .sort((a, b) => new Date(`${a.date}T${a.time || '10:00'}`) - new Date(`${b.date}T${b.time || '10:00'}`));
@@ -686,20 +681,22 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* MENÜ / SEKMELER */}
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
-            {currentUser.role === 'admin' && (
-              <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
-                <LayoutDashboard className="w-4 h-4" />
-                <span>Dashboard</span>
-              </button>
-            )}
-            <button onClick={() => setActiveTab('jobs')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
-              <ShoppingBag className="w-4 h-4" />
-              <span>İş & Rota Akışı ({sortedJobsForUser.length})</span>
-            </button>
+            
+            {/* YÖNETİCİ SEKMELERİ */}
             {currentUser.role === 'admin' && (
               <>
+                <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span>Dashboard & Rota</span>
+                </button>
+                <button onClick={() => setActiveTab('jobs')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>İş Listesi ({jobs.length})</span>
+                </button>
                 <button onClick={() => setActiveTab('new-job')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'new-job' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <PlusCircle className="w-4 h-4" />
                   <span>Yeni İş Kaydı</span>
@@ -726,23 +723,45 @@ export default function App() {
                 </button>
               </>
             )}
+
+            {/* SAHA PERSONELİ 3 SAYFA YAPISI */}
+            {currentUser.role === 'worker' && (
+              <>
+                <button onClick={() => setActiveTab('worker-dashboard')} className={`px-4 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'worker-dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <TrendingUp className="w-4 h-4" />
+                  <span>📊 1. Özet & Hakediş</span>
+                </button>
+                <button onClick={() => setActiveTab('jobs')} className={`px-4 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>🚗 2. Aktif İşler ({sortedJobsForUser.filter(j => currentUser.role === 'admin' || (j.assignedWorkers?.includes(currentUser.name) && j.status !== 'Tamamlandı')).length})</span>
+                </button>
+                <button onClick={() => setActiveTab('worker-completed')} className={`px-4 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'worker-completed' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>✅ 3. Tamamlanan İşler ({jobs.filter(j => j.assignedWorkers?.includes(currentUser.name) && j.status === 'Tamamlandı').length})</span>
+                </button>
+              </>
+            )}
+
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
+        
+        {/* YÖNETİCİ DASHBOARD & ROTA TAKİBİ */}
         {activeTab === 'dashboard' && currentUser.role === 'admin' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-3xl text-white shadow-lg">
               <div>
                 <h2 className="text-2xl font-black">Hoş Geldiniz, Bahadır Bey 👋</h2>
-                <p className="text-xs text-slate-300 mt-1">Pevuno Solution Saha Operasyonu Genel Özet Tablosu</p>
+                <p className="text-xs text-slate-300 mt-1">Pevuno Solution Canlı Saha Operasyon ve Rota Merkezi</p>
               </div>
               <button onClick={() => setActiveTab('new-job')} className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl shadow-lg transition text-xs flex items-center space-x-1">
                 <PlusCircle className="w-4 h-4" />
                 <span>Hızlı İş Kaydı</span>
               </button>
             </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-xs font-bold text-slate-400 uppercase">Bugünün Randevuları</span>
@@ -761,19 +780,98 @@ export default function App() {
                 <div className="text-2xl font-black text-purple-600">{customers.length} Kişi</div>
               </div>
             </div>
+
+            {/* YÖNETİCİ EKRANI İÇİN CANLI ROTA VE ZAMANLAMA LİSTESİ */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+                <Navigation className="w-5 h-5 text-emerald-600" />
+                <span>🧭 Canlı Saha Rota ve Zamanlama Takibi (Kim Nereye, Ne Zaman?)</span>
+              </h3>
+              <p className="text-xs text-slate-500">Yönetici olarak ekibin aktif olarak yürüteceği işlerin kronolojik sıra takibi:</p>
+              <div className="space-y-2">
+                {sortedJobsForUser.filter(j => j.status !== 'Tamamlandı').map((job, idx) => (
+                  <div key={job.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs">
+                    <div>
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="font-mono bg-slate-900 text-emerald-400 px-2 py-0.5 rounded font-bold">Sıra: #{idx + 1}</span>
+                        <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">📅 {job.date} - ⏰ {job.time || '10:00'}</span>
+                      </div>
+                      <strong className="text-sm text-slate-900">{job.customerName}</strong>
+                      <p className="text-slate-600 mt-0.5">📍 {job.address}</p>
+                    </div>
+                    <div className="text-right sm:border-l sm:border-slate-200 sm:pl-4">
+                      <span className="text-slate-500 block">Görevli Ekip</span>
+                      <strong className="text-emerald-700 font-bold">{job.assignedWorkers?.join(', ') || 'Atanmadı'}</strong>
+                    </div>
+                  </div>
+                ))}
+                {sortedJobsForUser.filter(j => j.status !== 'Tamamlandı').length === 0 && (
+                  <div className="p-6 bg-slate-50 rounded-xl text-center text-slate-400 text-xs">
+                    Aktif sırada bekleyen iş bulunmuyor.
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
 
-        {/* AKILLI SAHA ROTA & İŞ AKIŞI SEKMESİ */}
+        {/* SAHA PERSONELİ 1. SAYFA: DASHBOARD & HAKEDİŞ */}
+        {activeTab === 'worker-dashboard' && currentUser.role === 'worker' && (
+          <div className="space-y-6 max-w-3xl mx-auto">
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-3xl text-white shadow-lg space-y-2">
+              <h2 className="text-2xl font-black">Merhaba, {currentUser.name} 👷</h2>
+              <p className="text-xs text-slate-300">Pevuno Solution Saha Performans ve Hakediş Özet Paneli</p>
+            </div>
+
+            {(() => {
+              const myAllJobs = jobs.filter(j => j.assignedWorkers?.includes(currentUser.name));
+              const myCompletedJobs = myAllJobs.filter(j => j.status === 'Tamamlandı');
+              const myActiveJobs = myAllJobs.filter(j => j.status !== 'Tamamlandı');
+              
+              const myTotalEarnings = myCompletedJobs.reduce((acc, j) => {
+                const detail = j.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+                return acc + (detail ? Number(detail.amount) : 0);
+              }, 0);
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                    <span className="text-xs font-bold text-slate-400 uppercase">Toplam Hakediş (Kazanç)</span>
+                    <div className="text-2xl font-black text-emerald-600">{myTotalEarnings} TL</div>
+                  </div>
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                    <span className="text-xs font-bold text-slate-400 uppercase">Tamamlanan İşler</span>
+                    <div className="text-2xl font-black text-blue-600">{myCompletedJobs.length} İş</div>
+                  </div>
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                    <span className="text-xs font-bold text-slate-400 uppercase">Aktif Bekleyen İşler</span>
+                    <div className="text-2xl font-black text-amber-600">{myActiveJobs.length} İş</div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-3 text-center">
+              <h3 className="font-bold text-slate-800 text-sm">Hızlı İşlem Yönlendirmesi</h3>
+              <p className="text-xs text-slate-500">Sıradaki işlerinizi görmek ve rota takibi yapmak için "Aktif İşler" sekmesine geçebilirsiniz.</p>
+              <button onClick={() => setActiveTab('jobs')} className="bg-emerald-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow">
+                🚗 Aktif İşlerime Git
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* SAHA PERSONELİ 2. SAYFA: AKTİF İŞLER & ROTA AKIŞI */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
               <div>
                 <h2 className="text-lg font-bold flex items-center space-x-2">
                   <Navigation className="w-5 h-5 text-emerald-400" />
-                  <span>{currentUser.role === 'admin' ? 'Tüm Saha İş Akışı & Sıralı Rota' : 'Günün Görev Akışı & Rotam'}</span>
+                  <span>{currentUser.role === 'admin' ? 'Tüm Saha İş Akışı & Sıralı Rota' : 'Günün Aktif Görev Akışı & Rotam'}</span>
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">İşler en yakın tarihten başlayarak kronolojik sırayla listelenmiştir.</p>
+                <p className="text-xs text-slate-400 mt-0.5">Henüz tamamlanmamış aktif işler kronolojik sırayla listelenmiştir.</p>
               </div>
               {currentUser.role === 'admin' && (
                 <button onClick={() => setActiveTab('new-job')} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow">
@@ -784,178 +882,234 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sortedJobsForUser.map((job, index) => {
-                const myHakedisObj = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+              {sortedJobsForUser
+                .filter(job => currentUser.role === 'admin' || job.status !== 'Tamamlandı')
+                .map((job, index) => {
+                  const myHakedisObj = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+                  const jobDateObj = new Date(job.date);
+                  const todayObj = new Date(todayStr);
+                  const isToday = job.date === todayStr;
+                  const isPast = jobDateObj < todayObj && job.status !== 'Tamamlandı';
 
-                // İş gününün durumunu hesaplayan mantık
-                const jobDateObj = new Date(job.date);
-                const todayObj = new Date(todayStr);
-                const isToday = job.date === todayStr;
-                const isPast = jobDateObj < todayObj && job.status !== 'Tamamlandı';
-
-                return (
-                  <div key={job.id} className={`bg-white rounded-2xl p-5 shadow-sm border space-y-4 hover:shadow-md transition relative overflow-hidden ${
-                    isToday ? 'border-emerald-500 ring-2 ring-emerald-500/20' : isPast ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
-                  }`}>
-                    
-                    {/* SIRA VURGUSU */}
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="bg-slate-900 text-emerald-400 font-extrabold text-xs px-2.5 py-1 rounded-lg">
-                          📍 SIRA: {index + 1}
-                        </span>
-                        {isToday && <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded">BUGÜN</span>}
-                        {isPast && <span className="bg-rose-100 text-rose-800 text-[11px] font-bold px-2 py-0.5 rounded">GÜNÜ GEÇTİ</span>}
-                        {job.kvkkApproved && (
-                          <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold border border-emerald-200 flex items-center">
-                            <ShieldCheck className="w-3 h-3 mr-1" /> KVKK
-                          </span>
-                        )}
-                      </div>
+                  return (
+                    <div key={job.id} className={`bg-white rounded-2xl p-5 shadow-sm border space-y-4 hover:shadow-md transition relative overflow-hidden ${
+                      isToday ? 'border-emerald-500 ring-2 ring-emerald-500/20' : isPast ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+                    }`}>
                       
-                      <div className="flex items-center space-x-2">
-                        <select
-                          value={job.status}
-                          onChange={(e) => updateJobStatus(job.id, e.target.value)}
-                          className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
-                            job.status === 'Tamamlandı' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                            job.status === 'İşlem Yapılıyor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                            job.status === 'Yolda / Adreste' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                            'bg-slate-100 text-slate-700 border-slate-300'
-                          }`}
-                        >
-                          <option value="Sırada / Randevu">⏳ Sırada</option>
-                          <option value="Yolda / Adreste">🚗 Yolda</option>
-                          <option value="İşlem Yapılıyor">🧼 Temizlikte</option>
-                          <option value="Tamamlandı">✅ Bitti</option>
-                        </select>
-                        {currentUser.role === 'admin' && (
-                          <button onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1" title="İşi Sil">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="bg-slate-900 text-emerald-400 font-extrabold text-xs px-2.5 py-1 rounded-lg">
+                            📍 SIRA: #{index + 1}
+                          </span>
+                          {isToday && <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded">BUGÜN</span>}
+                          {isPast && <span className="bg-rose-100 text-rose-800 text-[11px] font-bold px-2 py-0.5 rounded">GÜNÜ GEÇTİ</span>}
+                          {job.kvkkApproved && (
+                            <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold border border-emerald-200 flex items-center">
+                              <ShieldCheck className="w-3 h-3 mr-1" /> KVKK
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <select
+                            value={job.status}
+                            onChange={(e) => updateJobStatus(job.id, e.target.value)}
+                            className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
+                              job.status === 'Tamamlandı' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                              job.status === 'İşlem Yapılıyor' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                              job.status === 'Yolda / Adreste' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                              'bg-slate-100 text-slate-700 border-slate-300'
+                            }`}
+                          >
+                            <option value="Sırada / Randevu">⏳ Sırada</option>
+                            <option value="Yolda / Adreste">🚗 Yolda</option>
+                            <option value="İşlem Yapılıyor">🧼 Temizlikte</option>
+                            <option value="Tamamlandı">✅ Bitti</option>
+                          </select>
+                          {currentUser.role === 'admin' && (
+                            <button onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1" title="İşi Sil">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-extrabold text-lg text-slate-900">{job.customerName}</h3>
+                            {job.companyName && <p className="text-xs text-slate-500 font-medium">🏢 {job.companyName}</p>}
+                          </div>
+                          <span className="text-xs bg-blue-50 text-blue-800 px-2.5 py-1 rounded-lg font-bold border border-blue-200">
+                            📅 {job.date} | ⏰ {job.time || '10:00'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-sm space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-2 text-slate-700">
+                            <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <span>{job.address}</span>
+                          </div>
+                          <a href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer" className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 hover:bg-emerald-700 shrink-0 shadow">
+                            <Navigation className="w-3 h-3" />
+                            <span>Yol Tarifi</span>
+                          </a>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 text-xs text-slate-600">
+                          <div className="flex items-center space-x-1">
+                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                            <a href={`tel:${job.phone}`} className="hover:underline font-mono">{job.phone}</a>
+                          </div>
+                          <div className="bg-slate-200/70 px-2 py-0.5 rounded font-medium">
+                            👷 Ekip: <strong>{formatWorkerNameMasked(job.assignedWorkers)}</strong>
+                          </div>
+                        </div>
+
+                        {currentUser.role === 'admin' && job.workerHakedisDetails && job.workerHakedisDetails.length > 0 && (
+                          <div className="text-[11px] bg-blue-50 border border-blue-200 text-blue-900 p-2 rounded-lg space-y-0.5">
+                            <span className="font-bold">💰 Personel Hakedişleri:</span>
+                            {job.workerHakedisDetails.map((wh, wIdx) => (
+                              <div key={wIdx} className="flex justify-between">
+                                <span>• {wh.workerName}:</span>
+                                <span className="font-bold">{wh.amount} TL</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {currentUser.role === 'worker' && myHakedisObj && (
+                          <div className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-900 p-2 rounded-lg font-bold flex justify-between">
+                            <span>💰 Bu İşten Alacağın Hakediş:</span>
+                            <span className="text-emerald-700 text-sm">{myHakedisObj.amount} TL</span>
+                          </div>
                         )}
                       </div>
-                    </div>
 
-                    <div>
-                      <div className="flex justify-between items-start">
+                      <div className="divide-y divide-slate-100 text-sm">
+                        {job.items.map((item, idx) => (
+                          <div key={idx} className="py-1 flex justify-between">
+                            <span className="text-slate-700">{item.serviceName} x{item.qty}</span>
+                            <span className="font-medium text-slate-900">{item.qty * item.unitPrice} TL</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-sm">
                         <div>
-                          <h3 className="font-extrabold text-lg text-slate-900">{job.customerName}</h3>
-                          {job.companyName && <p className="text-xs text-slate-500 font-medium">🏢 {job.companyName}</p>}
+                          <span className="text-slate-500 text-xs">Toplam Tutar: </span>
+                          <span className="font-extrabold text-base text-slate-900">{job.totalAmount} TL</span>
                         </div>
-                        <span className="text-xs bg-blue-50 text-blue-800 px-2.5 py-1 rounded-lg font-bold border border-blue-200">
-                          📅 {job.date} | ⏰ {job.time || '10:00'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-sm space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-2 text-slate-700">
-                          <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <span>{job.address}</span>
-                        </div>
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer" className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 hover:bg-emerald-700 shrink-0 shadow">
-                          <Navigation className="w-3 h-3" />
-                          <span>Yol Tarifi</span>
-                        </a>
-                      </div>
-                      <div className="flex items-center justify-between pt-1 text-xs text-slate-600">
-                        <div className="flex items-center space-x-1">
-                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                          <a href={`tel:${job.phone}`} className="hover:underline font-mono">{job.phone}</a>
-                        </div>
-                        <div className="bg-slate-200/70 px-2 py-0.5 rounded font-medium">
-                          👷 Ekip: <strong>{formatWorkerNameMasked(job.assignedWorkers)}</strong>
+                        <div className="text-right">
+                          <span className="text-xs block text-slate-500">Ödeme Durumu</span>
+                          <span className="text-xs font-bold text-emerald-600">
+                            {job.paidAmount >= job.totalAmount ? `Ödendi (${job.paymentMethod})` : 'Bekliyor'}
+                          </span>
                         </div>
                       </div>
 
-                      {currentUser.role === 'admin' && job.workerHakedisDetails && job.workerHakedisDetails.length > 0 && (
-                        <div className="text-[11px] bg-blue-50 border border-blue-200 text-blue-900 p-2 rounded-lg space-y-0.5">
-                          <span className="font-bold">💰 Personel Hakedişleri:</span>
-                          {job.workerHakedisDetails.map((wh, wIdx) => (
-                            <div key={wIdx} className="flex justify-between">
-                              <span>• {wh.workerName}:</span>
-                              <span className="font-bold">{wh.amount} TL</span>
-                            </div>
-                          ))}
+                      {currentUser.role === 'worker' && job.status !== 'Tamamlandı' && (
+                        <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-2">
+                          <p className="text-xs font-bold text-emerald-900">İş bitti mi? Ödemeyi nasıl aldınız?</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button onClick={() => handleWorkerCompleteJob(job.id, 'Elden (Saha)')} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">💵 Elden Aldım</button>
+                            <button onClick={() => handleWorkerCompleteJob(job.id, 'IBAN (Yönetici)')} className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">🏦 IBAN'a Atıldı</button>
+                          </div>
                         </div>
                       )}
 
-                      {currentUser.role === 'worker' && myHakedisObj && (
-                        <div className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-900 p-2 rounded-lg font-bold flex justify-between">
-                          <span>💰 Bu İşten Alacağın Hakediş:</span>
+                      {currentUser.role === 'admin' && (
+                        <div className="space-y-1.5 pt-1">
+                          <button onClick={() => sendWhatsAppAppointmentConfirmation(job)} className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>📅 Müşteriye Randevu Onay Mesajı Gönder (WP)</span>
+                          </button>
+                          <button onClick={() => sendWhatsAppNotificationToWorker(job)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
+                            <UserCheck className="w-3.5 h-3.5" />
+                            <span>👷 Çalışana WP ile İş Detayını Gönder</span>
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-1.5 pt-1">
+                        <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                          <Send className="w-3 h-3" />
+                          <span>Yola Çıkıldı</span>
+                        </button>
+                        <button onClick={() => sendWhatsAppCompletion(job)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
+                          <MessageSquare className="w-3 h-3" />
+                          <span>Servis Bitti</span>
+                        </button>
+                        <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 border border-slate-200 transition">
+                          <FileText className="w-3 h-3" />
+                          <span>Servis Fişi</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {sortedJobsForUser.filter(job => currentUser.role === 'admin' || job.status !== 'Tamamlandı').length === 0 && (
+                <div className="col-span-2 p-8 bg-white rounded-2xl border border-slate-200 text-center text-slate-400">
+                  Aktif sırada bekleyen iş bulunmuyor.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SAHA PERSONELİ 3. SAYFA: TAMAMLANAN İŞLER ARŞİVİ */}
+        {activeTab === 'worker-completed' && currentUser.role === 'worker' && (
+          <div className="space-y-4">
+            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow">
+              <h2 className="text-lg font-bold flex items-center space-x-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <span>Tamamlanan İşler Arşivi</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">Bugüne kadar başarıyla tamamladığınız tüm servislerin geçmiş kayıtları.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {jobs
+                .filter(job => job.assignedWorkers?.includes(currentUser.name) && job.status === 'Tamamlandı')
+                .map((job) => {
+                  const myHakedisObj = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+
+                  return (
+                    <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-200 space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-lg">
+                          ✅ TAMAMLANDI
+                        </span>
+                        <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">📅 {job.date}</span>
+                      </div>
+
+                      <div>
+                        <h3 className="font-bold text-lg text-slate-900">{job.customerName}</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">📍 {job.address}</p>
+                      </div>
+
+                      {myHakedisObj && (
+                        <div className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-900 p-2.5 rounded-xl font-bold flex justify-between">
+                          <span>💰 Alınan Hakediş:</span>
                           <span className="text-emerald-700 text-sm">{myHakedisObj.amount} TL</span>
                         </div>
                       )}
-                    </div>
 
-                    <div className="divide-y divide-slate-100 text-sm">
-                      {job.items.map((item, idx) => (
-                        <div key={idx} className="py-1 flex justify-between">
-                          <span className="text-slate-700">{item.serviceName} x{item.qty}</span>
-                          <span className="font-medium text-slate-900">{item.qty * item.unitPrice} TL</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-sm">
-                      <div>
-                        <span className="text-slate-500 text-xs">Toplam Tutar: </span>
-                        <span className="font-extrabold text-base text-slate-900">{job.totalAmount} TL</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs block text-slate-500">Ödeme Durumu</span>
-                        <span className="text-xs font-bold text-emerald-600">
-                          {job.paidAmount >= job.totalAmount ? `Ödendi (${job.paymentMethod})` : 'Bekliyor'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {currentUser.role === 'worker' && job.status !== 'Tamamlandı' && (
-                      <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl space-y-2">
-                        <p className="text-xs font-bold text-emerald-900">İş bitti mi? Ödemeyi nasıl aldınız?</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => handleWorkerCompleteJob(job.id, 'Elden (Saha)')} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">💵 Elden Aldım</button>
-                          <button onClick={() => handleWorkerCompleteJob(job.id, 'IBAN (Yönetici)')} className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold py-2 px-3 rounded-lg shadow">🏦 IBAN'a Atıldı</button>
-                        </div>
-                      </div>
-                    )}
-
-                    {currentUser.role === 'admin' && (
-                      <div className="space-y-1.5 pt-1">
-                        <button onClick={() => sendWhatsAppAppointmentConfirmation(job)} className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>📅 Müşteriye Randevu Onay Mesajı Gönder (WP)</span>
-                        </button>
-                        <button onClick={() => sendWhatsAppNotificationToWorker(job)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
-                          <UserCheck className="w-3.5 h-3.5" />
-                          <span>👷 Çalışana WP ile İş Detayını Gönder</span>
+                      <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Ödeme: <strong>{job.paymentMethod}</strong></span>
+                        <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg border border-slate-200">
+                          Servis Fişini Gör
                         </button>
                       </div>
-                    )}
-
-                    <div className="grid grid-cols-3 gap-1.5 pt-1">
-                      <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
-                        <Send className="w-3 h-3" />
-                        <span>Yola Çıkıldı</span>
-                      </button>
-                      <button onClick={() => sendWhatsAppCompletion(job)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
-                        <MessageSquare className="w-3 h-3" />
-                        <span>Servis Bitti</span>
-                      </button>
-                      <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 border border-slate-200 transition">
-                        <FileText className="w-3 h-3" />
-                        <span>Servis Fişi</span>
-                      </button>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
 
-              {sortedJobsForUser.length === 0 && (
-                <div className="col-span-2 p-8 bg-white rounded-2xl border border-slate-200 text-center text-slate-400">
-                  Şu an için kayıtlı bir iş veya randevu bulunmuyor.
+              {jobs.filter(job => job.assignedWorkers?.includes(currentUser.name) && job.status === 'Tamamlandı').length === 0 && (
+                <div className="col-span-2 p-8 bg-white rounded-2xl border border-slate-200 text-center text-slate-400 text-xs">
+                  Henüz tamamlanmış bir işiniz bulunmuyor.
                 </div>
               )}
             </div>
@@ -1412,12 +1566,11 @@ export default function App() {
         )}
       </main>
 
-      {/* SERVİS FİŞİ POPUP & FOTOĞRAF OLAARAK İNDİRME BÖLÜMÜ */}
+      {/* SERVİS FİŞİ POPUP & FOTOĞRAF OLARAK İNDİRME */}
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
             
-            {/* FİŞ ALANI (KART ALANI YAKALANIR) */}
             <div ref={receiptRef} className="bg-white p-4 border border-slate-100 rounded-2xl space-y-4">
               <div className="border-b border-slate-200 pb-4 text-center space-y-1">
                 <h2 className="text-2xl font-extrabold text-slate-900 tracking-wider">PEVUNO SOLUTION</h2>
@@ -1457,7 +1610,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* BUTONLAR BÖLÜMÜ */}
             <div className="space-y-2 pt-2">
               <button 
                 onClick={downloadReceiptAsImage} 
