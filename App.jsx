@@ -9,7 +9,6 @@ import {
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzbW1wenRnbWtldXloenViYmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwODE2MjYsImV4cCI6MjEwODY1NzYyNn0.G_GvzaWPl7i4DR9Yo-j3Kuk2ykq5_h5hGDROmB7zBNc";
 
-// Mobil ağlarda zaman aşımı korumalı fetch fonksiyonu
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -80,7 +79,7 @@ const DEFAULT_SERVICES = [
 const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]*,
 Evinizde/iş yerinizde hijyeni her zaman en üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨
 Periyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, bu mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.
-_(Yasal Bilgilendirme: 6698 sayılı Kişisel Verilerin Korunması Kanunu uyarınca, veri sorumlusu sıfatıyla kimlik, iletişim ve hizmet lokasyonu verileriniz yalnızca randevu operasyonlarının yürütülmesi ve periyodik bakım hatırlatmalarının yapılabilmesi amacıyla işlenmektedir. Detaylı Aydınlatma Metnimize dilediğiniz zaman ulaşabilir; kişisel verilerinizle ilgili her türlü hak ve talebinizi bizimle her zaman paylaşabilirsiniz.)_
+_(Yasal Bilgilendirme: 6698 sayılı Kişisel Verilerin Korunması Kanunu uyarınca, veri sorumlusu sıfatıyla kimlik, iletişim ve hizmet lokasyonu verileriniz yalnızca randevu operasyonlarının yürütülmesi ve periyodik bakım hatırlatmalarının yapılabilmesi amacıyla işlenmektedir.)_
 Sağlıklı ve hijyenik günler dileriz.
 Pevuno Solution`;
 
@@ -96,7 +95,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [isSynced, setIsSynced] = useState(false);
 
-  // State Yönetimleri
   const [services, setServices] = useState(() => {
     const saved = localStorage.getItem('pevuno_services');
     return saved ? JSON.parse(saved) : DEFAULT_SERVICES;
@@ -122,11 +120,8 @@ export default function App() {
     return saved ? saved : DEFAULT_KVKK_TEMPLATE;
   });
   const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
-
-  // Müşteri Arama State'i (Yeni İş Kaydı İçin)
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
 
-  // Bulut Senkronizasyonu
   const syncWithCloud = async () => {
     setIsSynced(false);
     try {
@@ -187,7 +182,9 @@ export default function App() {
   const [jobTime, setJobTime] = useState('10:00');
   
   const [selectedWorkers, setSelectedWorkers] = useState([]);
-  const [workerHakedis, setWorkerHakedis] = useState(300);
+  // Her personelin hakedişini tutacak obje yapısı: { "Bahadır": 1000, "Yunus": 900 }
+  const [workerHakedisMap, setWorkerHakedisMap] = useState({});
+
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerPin, setNewWorkerPin] = useState('');
   const [newWorkerPhone, setNewWorkerPhone] = useState('');
@@ -230,7 +227,6 @@ export default function App() {
     }).join(', ');
   };
 
-  // Son Temizlik Tarihinden Kaç Gün Geçtiğini Hesaplayan Yardımcı Fonksiyon
   const getDaysSinceLastJob = (lastJobDate) => {
     if (!lastJobDate || lastJobDate === 'Yeni' || lastJobDate === 'Yeni Eklenen') return null;
     const lastDate = new Date(lastJobDate);
@@ -350,6 +346,14 @@ export default function App() {
       alert('Lütfen müşteri adı, telefon, adres ve en az 1 hizmet seçiniz.');
       return;
     }
+
+    // Seçilen personellerin hakedişlerini topla veya tek tek kaydet
+    const workerHakedisDetails = selectedWorkers.map(wName => ({
+      workerName: wName,
+      amount: Number(workerHakedisMap[wName]) || 300
+    }));
+    const totalWorkerHakedis = workerHakedisDetails.reduce((acc, curr) => acc + curr.amount, 0);
+
     const newJobObj = {
       id: `JOB-${Math.floor(1000 + Math.random() * 9000)}`,
       customerName: newCustomerName,
@@ -367,11 +371,13 @@ export default function App() {
       date: jobDate,
       time: jobTime,
       assignedWorkers: selectedWorkers.length > 0 ? selectedWorkers : (workers[0] ? [workers[0].name] : ['Saha Ekibi']),
-      workerHakedis: Number(workerHakedis) || 300,
+      workerHakedisDetails: workerHakedisDetails,
+      workerHakedis: totalWorkerHakedis, // Toplam hakediş
       kvkkApproved: kvkkChecked,
       paymentMethod: 'Elden (Saha)',
       completedByWorker: false
     };
+
     updateJobs([newJobObj, ...jobs]);
     const existingCustIndex = customers.findIndex(c => c.phone === newCustomerPhone);
     let updatedCusts = [...customers];
@@ -425,6 +431,27 @@ export default function App() {
       paidAmount: j.totalAmount 
     } : j));
     alert('İş tamamlandı ve yöneticiye bildirildi!');
+  };
+
+  // MÜŞTERİYE GÖNDERİLECEK KURUMSAL RANDEVU ONAY MESAJI
+  const sendWhatsAppAppointmentConfirmation = (job) => {
+    const assignedText = formatWorkerNameMasked(job.assignedWorkers);
+    let msg = `Merhaba *${job.customerName}*,\n\n`;
+    msg += `✨ *PEVUNO SOLUTION* profesyonel temizlik randevunuz başarıyla oluşturulmuştur! 🧼\n\n`;
+    msg += `📅 *Tarih / Saat:* ${job.date} - ${job.time || '10:00'}\n`;
+    msg += `📍 *Adres:* ${job.address}\n`;
+    msg += `👷 *Görevli Ekip:* ${assignedText}\n\n`;
+    msg += `📋 *Hizmet Detayı:*\n`;
+    job.items.forEach(i => {
+      msg += `• ${i.serviceName} x${i.qty}\n`;
+    });
+    msg += `\n💳 *Toplam Tutar:* ${job.totalAmount} TL\n\n`;
+    msg += `Belirtilen saatte görüşmek üzere iyi günler dileriz! 🌿`;
+
+    const encoded = encodeURIComponent(msg);
+    const cleanPhone = job.phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
+    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
   const sendWhatsAppNotificationToWorker = (job) => {
@@ -544,14 +571,12 @@ export default function App() {
   const todayJobsCount = jobs.filter(j => j.date === todayStr).length;
   const completedJobsCount = jobs.filter(j => j.status === 'Tamamlandı').length;
 
-  // Filtrelenmiş Müşteri Arama Listesi
   const filteredCustomersForJob = customers.filter(c => 
     c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
     c.phone.includes(customerSearchQuery) ||
     (c.company && c.company.toLowerCase().includes(customerSearchQuery.toLowerCase()))
   );
 
-  // 180 Gün (6 Ay) ve Üzeri Süre Geçmiş KVKK Onaylı Müşteriler
   const reminderEligibleCustomers = customers.filter(c => {
     if (!c.kvkk) return false;
     const days = getDaysSinceLastJob(c.lastJobDate);
@@ -785,6 +810,18 @@ export default function App() {
                         👷 Ekip: <strong>{formatWorkerNameMasked(job.assignedWorkers)}</strong>
                       </div>
                     </div>
+                    {/* Personel bazlı hakedişleri göster */}
+                    {currentUser.role === 'admin' && job.workerHakedisDetails && job.workerHakedisDetails.length > 0 && (
+                      <div className="text-[11px] bg-blue-50 border border-blue-200 text-blue-900 p-2 rounded-lg space-y-0.5">
+                        <span className="font-bold">💰 Personel Hakedişleri:</span>
+                        {job.workerHakedisDetails.map((wh, wIdx) => (
+                          <div key={wIdx} className="flex justify-between">
+                            <span>• {wh.workerName}:</span>
+                            <span className="font-bold">{wh.amount} TL</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="divide-y divide-slate-100 text-sm">
                     {job.items.map((item, idx) => (
@@ -800,6 +837,20 @@ export default function App() {
                       <span className="font-extrabold text-base text-slate-900">{job.totalAmount} TL</span>
                     </div>
                   </div>
+
+                  {currentUser.role === 'admin' && (
+                    <div className="space-y-1.5 pt-1">
+                      <button onClick={() => sendWhatsAppAppointmentConfirmation(job)} className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>📅 Müşteriye Randevu Onay Mesajı Gönder (WP)</span>
+                      </button>
+                      <button onClick={() => sendWhatsAppNotificationToWorker(job)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-3 rounded-xl flex items-center justify-center space-x-1.5 shadow transition">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>👷 Çalışana WP ile İş Detayını Gönder</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-3 gap-1.5 pt-1">
                     <button onClick={() => sendWhatsAppOnTheWay(job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[11px] py-2 px-1 rounded-xl flex items-center justify-center space-x-1 shadow transition">
                       <Send className="w-3 h-3" />
@@ -820,7 +871,7 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI & CANLI MÜŞTERİ ARAMA */}
+        {/* YENİ İŞ KAYDI & PERSONEL HAKEDİŞLERİ */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
@@ -829,7 +880,6 @@ export default function App() {
             </h2>
             <form onSubmit={handleCreateJob} className="space-y-6">
               
-              {/* CANLI ARAMA KUTUSU */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Kayıtlı Müşteri Ara ve Seç (1000+ Müşteri Arama Desteği)</label>
                 <div className="relative">
@@ -888,22 +938,39 @@ export default function App() {
                   <input type="text" required placeholder="Örn: 05321234567" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller (Çoklu Seçim) *</label>
-                  <div className="border border-slate-300 rounded-xl p-2.5 bg-white space-y-1.5 max-h-36 overflow-y-auto">
-                    {workers.map(w => (
-                      <label key={w.id} className="flex items-center space-x-2 text-xs font-medium cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedWorkers.includes(w.name)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedWorkers([...selectedWorkers, w.name]);
-                            else setSelectedWorkers(selectedWorkers.filter(name => name !== w.name));
-                          }}
-                          className="w-4 h-4 text-emerald-600 rounded"
-                        />
-                        <span>{w.name}</span>
-                      </label>
-                    ))}
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller ve Hakedişleri *</label>
+                  <div className="border border-slate-300 rounded-xl p-3 bg-white space-y-2 max-h-44 overflow-y-auto">
+                    {workers.map(w => {
+                      const isChecked = selectedWorkers.includes(w.name);
+                      return (
+                        <div key={w.id} className="space-y-1 border-b border-slate-100 pb-2">
+                          <label className="flex items-center space-x-2 text-xs font-bold text-slate-800 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedWorkers([...selectedWorkers, w.name]);
+                                else setSelectedWorkers(selectedWorkers.filter(name => name !== w.name));
+                              }}
+                              className="w-4 h-4 text-emerald-600 rounded"
+                            />
+                            <span>{w.name}</span>
+                          </label>
+                          {isChecked && (
+                            <div className="pl-6 flex items-center space-x-2">
+                              <span className="text-[11px] text-slate-500">Hakediş (TL):</span>
+                              <input 
+                                type="number" 
+                                placeholder="Örn: 1000"
+                                value={workerHakedisMap[w.name] !== undefined ? workerHakedisMap[w.name] : 300}
+                                onChange={(e) => setWorkerHakedisMap({ ...workerHakedisMap, [w.name]: e.target.value })}
+                                className="border border-slate-300 rounded-lg px-2 py-1 text-xs w-28 bg-slate-50 font-bold text-emerald-700"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="md:col-span-2">
@@ -959,7 +1026,7 @@ export default function App() {
               </div>
 
               <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1">İndirim Türü</label>
                     <select value={discountType} onChange={(e) => setDiscountType(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white">
@@ -974,10 +1041,6 @@ export default function App() {
                       <input type="number" value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                     </div>
                   )}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Personel Hakedişi (TL)</label>
-                    <input type="number" value={workerHakedis} onChange={(e) => setWorkerHakedis(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                  </div>
                 </div>
                 <div className="pt-3 border-t border-emerald-200 flex justify-between items-center">
                   <div>
@@ -1097,7 +1160,7 @@ export default function App() {
           </div>
         )}
 
-        {/* FİYATLAR SEKMESİ (BULUT DESTEKLİ) */}
+        {/* FİYATLAR SEKMESİ */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1138,7 +1201,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 180 GÜN FİLTRELİ HATIRLATICILAR SEKMESİ */}
+        {/* HATIRLATICILAR SEKMESİ */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1265,7 +1328,7 @@ export default function App() {
             <div className="border-b border-slate-200 pb-4 text-center space-y-1">
               <h2 className="text-2xl font-extrabold text-slate-900">PEVUNO SOLUTION</h2>
               <p className="text-xs text-slate-500">Profesyonel Temizlik & Hijyen Servis Fişi</p>
-              <p className="text-xs font-medium text-emerald-700 mt-1">Saha Ekibi: {formatWorkerNameMasked(selectedJobForReceipt.assignedWorkers)}</p>
+              <p className="text-xs font-medium text-emerald-700 mt-1">Saha Ekip: {formatWorkerNameMasked(selectedJobForReceipt.assignedWorkers)}</p>
             </div>
             <div className="text-xs space-y-1 text-slate-600">
               <p><strong>Müşteri:</strong> {selectedJobForReceipt.customerName}</p>
