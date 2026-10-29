@@ -79,7 +79,7 @@ const DEFAULT_SERVICES = [
 const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]*,
 Evinizde/iş yerinizde hijyeni her zaman en üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨
 Periyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, bu mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.
-Sağlıklı and hijyenik günler dileriz.
+Sağlıklı ve hijyenik günler dileriz.
 Pevuno Solution`;
 
 export default function App() {
@@ -89,12 +89,18 @@ export default function App() {
   });
   
   const [loginPin, setLoginPin] = useState('');
+  const [loginWorkerInput, setLoginWorkerInput] = useState('');
   const [loginType, setLoginType] = useState('admin');
-  const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [isSynced, setIsSynced] = useState(false);
 
   const receiptRef = useRef(null);
+
+  const [adminPassword, setAdminPassword] = useState(() => {
+    const saved = localStorage.getItem('pevuno_admin_pass');
+    return saved || '1453';
+  });
+  const [newAdminPassInput, setNewAdminPassInput] = useState('');
 
   const [services, setServices] = useState(() => {
     const saved = localStorage.getItem('pevuno_services');
@@ -152,6 +158,11 @@ export default function App() {
         setTempKvkkInput(cloudKvkk);
         localStorage.setItem('pevuno_kvkk', cloudKvkk);
       }
+      const cloudAdminPass = await fetchSupabaseData('admin_password', null);
+      if (cloudAdminPass) {
+        setAdminPassword(cloudAdminPass);
+        localStorage.setItem('pevuno_admin_pass', cloudAdminPass);
+      }
     } catch (err) {
       console.error("Senkronizasyon hatası:", err);
     }
@@ -205,6 +216,19 @@ export default function App() {
   const updateJobs = (newJbs) => commitChange('jobs', newJbs, setJobs, 'pevuno_jobs');
   const updateCustomers = (newCust) => commitChange('customers', newCust, setCustomers, 'pevuno_customers');
 
+  const handleSaveAdminPassword = async (e) => {
+    e.preventDefault();
+    if (!newAdminPassInput || newAdminPassInput.length < 4) {
+      alert('Lütfen en az 4 haneli yeni bir şifre belirleyin.');
+      return;
+    }
+    setAdminPassword(newAdminPassInput);
+    localStorage.setItem('pevuno_admin_pass', newAdminPassInput);
+    await saveSupabaseData('admin_password', newAdminPassInput);
+    setNewAdminPassInput('');
+    alert('Yönetici şifreniz başarıyla değiştirildi ve buluta kaydedildi!');
+  };
+
   const handleSaveKvkkTemplate = async (e) => {
     e.preventDefault();
     setKvkkTemplate(tempKvkkInput);
@@ -248,19 +272,20 @@ export default function App() {
   const handleLogin = (e) => {
     e.preventDefault();
     if (loginType === 'admin') {
-      if (loginPin === '1453' || loginPin === 'admin') {
+      if (loginPin === adminPassword) {
         setCurrentUser({ role: 'admin', name: 'Bahadır (Yönetici)' });
         setActiveTab('dashboard');
       } else {
-        alert('Hatalı Yönetici Şifresi! (Şifre: 1453)');
+        alert('Hatalı Yönetici Şifresi!');
       }
     } else {
-      const worker = workers.find(w => w.id === selectedWorkerId);
-      if (worker && loginPin === worker.pin) {
+      const trimmedInput = loginWorkerInput.trim().toLowerCase();
+      const worker = workers.find(w => w.name.trim().toLowerCase() === trimmedInput && w.pin === loginPin);
+      if (worker) {
         setCurrentUser({ role: 'worker', name: worker.name });
         setActiveTab('worker-dashboard');
       } else {
-        alert('Hatalı Personel Şifresi (PIN)!');
+        alert('Hatalı Kullanıcı Adı veya PIN Şifresi!');
       }
     }
   };
@@ -627,18 +652,31 @@ export default function App() {
               <button type="button" onClick={() => setLoginType('admin')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginType === 'admin' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>👑 Yönetici Girişi</button>
               <button type="button" onClick={() => setLoginType('worker')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${loginType === 'worker' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'}`}>👷 Saha Personeli</button>
             </div>
-            {loginType === 'worker' && (
+            {loginType === 'worker' ? (
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Personel Seçiniz</label>
-                <select value={selectedWorkerId} onChange={(e) => setSelectedWorkerId(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-slate-50">
-                  <option value="">Personel Seçin...</option>
-                  {workers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Personel Adı Soyadı</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Örn: Ahmet Yılmaz" 
+                  value={loginWorkerInput} 
+                  onChange={(e) => setLoginWorkerInput(e.target.value)} 
+                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500 bg-slate-50" 
+                />
               </div>
-            )}
+            ) : null}
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">{loginType === 'admin' ? 'Yönetici Şifresi (1453)' : 'Personel Şifresi (PIN)'}</label>
-              <input type="password" required placeholder="Şifrenizi girin..." value={loginPin} onChange={(e) => setLoginPin(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500" />
+              <label className="block text-xs font-bold text-slate-600 mb-1">
+                {loginType === 'admin' ? 'Yönetici Şifresi' : 'Personel Şifresi (PIN)'}
+              </label>
+              <input 
+                type="password" 
+                required 
+                placeholder="Şifrenizi girin..." 
+                value={loginPin} 
+                onChange={(e) => setLoginPin(e.target.value)} 
+                className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500" 
+              />
             </div>
             <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition">Sisteme Giriş Yap 🚀</button>
           </form>
@@ -721,6 +759,10 @@ export default function App() {
                   <TrendingUp className="w-4 h-4" />
                   <span>Kasa</span>
                 </button>
+                <button onClick={() => setActiveTab('security')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'security' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+                  <Lock className="w-4 h-4" />
+                  <span>Şifre Değiştir</span>
+                </button>
               </>
             )}
 
@@ -781,7 +823,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* YÖNETİCİ EKRANI İÇİN CANLI ROTA VE ZAMANLAMA LİSTESİ */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
                 <Navigation className="w-5 h-5 text-emerald-600" />
@@ -1516,7 +1557,7 @@ export default function App() {
                 <span>Saha Personeli & Şifre Yönetimi</span>
               </h2>
               <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Personel Adı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Personel Adı Soyadı" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <input type="text" required placeholder="Giriş PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <input type="text" placeholder="Telefon (0532...)" value={newWorkerPhone} onChange={(e) => setNewWorkerPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
                 <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-sm shadow flex items-center justify-center space-x-1">
@@ -1564,6 +1605,36 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* YÖNETİCİ ŞİFRE DEĞİŞTİRME SEKMESİ */}
+        {activeTab === 'security' && currentUser.role === 'admin' && (
+          <div className="space-y-6 max-w-md mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                <Lock className="w-6 h-6 text-emerald-600" />
+                <span>Yönetici Şifresini Değiştir</span>
+              </h2>
+              <p className="text-xs text-slate-500">Mevcut şifreniz bulutta güvenle saklanır. Buradan yeni bir şifre belirleyebilirsiniz.</p>
+              <form onSubmit={handleSaveAdminPassword} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Yeni Yönetici Şifresi</label>
+                  <input 
+                    type="password" 
+                    required 
+                    placeholder="Yeni şifrenizi girin..." 
+                    value={newAdminPassInput} 
+                    onChange={(e) => setNewAdminPassInput(e.target.value)} 
+                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-emerald-500" 
+                  />
+                </div>
+                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow transition">
+                  Şifreyi Güncelle ve Buluta Kaydet 🔒
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* SERVİS FİŞİ POPUP & FOTOĞRAF OLARAK İNDİRME */}
