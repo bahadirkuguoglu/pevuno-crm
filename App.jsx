@@ -175,6 +175,7 @@ export default function App() {
   const [newAddressType, setNewAddressType] = useState('ev');
   const [newNote, setNewNote] = useState('');
   const [kvkkChecked, setKvkkChecked] = useState(false);
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
 
   // Firma Formu
   const [newCompanyName, setNewCompanyName] = useState('');
@@ -609,12 +610,6 @@ export default function App() {
   const todayStr = new Date().toISOString().split('T')[0];
   const todayJobsCount = jobs.filter(j => j.date === todayStr).length;
 
-  const reminderEligibleCustomers = customers.filter(c => {
-    if (!c.kvkk) return false;
-    const days = getDaysSinceLastJob(c.lastJobDate);
-    return days !== null && days >= 180;
-  });
-
   const sortedJobsForUser = [...jobs]
     .filter(j => currentUser?.role === 'admin' || j.assignedWorkers?.includes(currentUser?.name))
     .sort((a, b) => new Date(`${a.date}T${a.time || '10:00'}`) - new Date(`${b.date}T${b.time || '10:00'}`));
@@ -917,15 +912,48 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI SEKMESİ */}
+        {/* YENİ İŞ KAYDI SEKMESİ (Otomatik Tamamlama Eklendi) */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
             <form onSubmit={handleCreateJob} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-bold text-slate-600 mb-1">Müşteri Adı Soyadı *</label>
-                  <input type="text" required placeholder="Örn: Mehmet Öz" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Örn: Mehmet Öz" 
+                    value={newCustomerName} 
+                    onChange={(e) => {
+                      setNewCustomerName(e.target.value);
+                      setShowCustomerSuggestions(true);
+                    }} 
+                    onFocus={() => setShowCustomerSuggestions(true)}
+                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" 
+                  />
+                  {showCustomerSuggestions && newCustomerName.trim().length > 0 && (
+                    <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                      {customers
+                        .filter(c => c.name.toLowerCase().includes(newCustomerName.toLowerCase()) || c.phone.includes(newCustomerName))
+                        .map(cust => (
+                          <div 
+                            key={cust.id} 
+                            onClick={() => {
+                              setNewCustomerName(cust.name);
+                              setNewCustomerPhone(cust.phone);
+                              setNewAddress(cust.address || '');
+                              if (cust.addressType) setNewAddressType(cust.addressType);
+                              setShowCustomerSuggestions(false);
+                            }}
+                            className="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-100 text-xs"
+                          >
+                            <div className="font-bold text-slate-900">{cust.name}</div>
+                            <div className="text-slate-500">{cust.phone} - {cust.address}</div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1">Telefon Numarası *</label>
@@ -997,28 +1025,50 @@ export default function App() {
           </div>
         )}
 
-        {/* MÜŞTERİLER & FİRMALAR SEKMESİ */}
+        {/* MÜŞTERİLER & FİRMALAR SEKMESİ (Tek Satır Optimizasyonu) */}
         {activeTab === 'customers' && currentUser.role === 'admin' && (
           <div className="space-y-8 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
                 <Users className="w-5 h-5 text-emerald-600" />
-                <span>Bireysel Müşteri Ekle</span>
+                <span>Bireysel Müşteri Ekle (Tek Satır)</span>
               </h2>
-              <form onSubmit={handleAddDirectCustomer} className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Müşteri Adı Soyadı" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Telefon (0532...)" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <input type="text" required placeholder="Açık Adres" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white sm:col-span-2" />
-                  <select value={newAddressType} onChange={(e) => setNewAddressType(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-bold">
-                    <option value="ev">🏠 Ev</option>
-                    <option value="işyeri">🏢 İşyeri</option>
-                    <option value="diğer">📍 Diğer</option>
-                  </select>
-                </div>
-                <div className="sm:col-span-2 text-right">
-                  <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Müşteriyi Kaydet</button>
-                </div>
+              {/* TEK SATIR MÜŞTERİ EKLEME FORMU */}
+              <form onSubmit={handleAddDirectCustomer} className="flex flex-col sm:flex-row gap-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Ad Soyad" 
+                  value={newCustomerName} 
+                  onChange={(e) => setNewCustomerName(e.target.value)} 
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white flex-1" 
+                />
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Telefon (0532...)" 
+                  value={newCustomerPhone} 
+                  onChange={(e) => setNewCustomerPhone(e.target.value)} 
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white sm:w-40" 
+                />
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Açık Adres" 
+                  value={newAddress} 
+                  onChange={(e) => setNewAddress(e.target.value)} 
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white flex-2" 
+                />
+                <select 
+                  value={newAddressType} 
+                  onChange={(e) => setNewAddressType(e.target.value)} 
+                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-bold sm:w-28"
+                >
+                  <option value="ev">🏠 Ev</option>
+                  <option value="işyeri">🏢 İşyeri</option>
+                  <option value="diğer">📍 Diğer</option>
+                </select>
+                <button type="submit" className="bg-emerald-600 text-white font-bold px-5 py-2 rounded-xl text-sm shadow whitespace-nowrap">Kaydet</button>
               </form>
 
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mt-4">
