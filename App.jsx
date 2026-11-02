@@ -3,7 +3,7 @@ import {
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
   MessageSquare, DollarSign, Edit3, Trash2, Search, Download,
-  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send, UserCheck, LayoutDashboard, UserCheck2, Navigation
+  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send, UserCheck, LayoutDashboard, UserCheck2, Navigation, Building2
 } from 'lucide-react';
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
@@ -112,8 +112,8 @@ export default function App() {
     const saved = localStorage.getItem('pevuno_customers');
     return saved ? JSON.parse(saved) : [];
   });
-  const [expenses, setExpenses] = useState(() => {
-    const saved = localStorage.getItem('pevuno_expenses');
+  const [companies, setCompanies] = useState(() => {
+    const saved = localStorage.getItem('pevuno_companies');
     return saved ? JSON.parse(saved) : [];
   });
   const [kvkkTemplate, setKvkkTemplate] = useState(() => {
@@ -146,6 +146,11 @@ export default function App() {
         setCustomers(cloudCustomers);
         localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers));
       }
+      const cloudCompanies = await fetchSupabaseData('companies', null);
+      if (cloudCompanies && Array.isArray(cloudCompanies)) {
+        setCompanies(cloudCompanies);
+        localStorage.setItem('pevuno_companies', JSON.stringify(cloudCompanies));
+      }
       const cloudKvkk = await fetchSupabaseData('kvkk_template', null);
       if (cloudKvkk) {
         setKvkkTemplate(cloudKvkk);
@@ -164,17 +169,20 @@ export default function App() {
     return () => window.removeEventListener('focus', syncWithCloud);
   }, []);
 
-  const [selectedExistingCustomer, setSelectedExistingCustomer] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
-  const [newCompany, setNewCompany] = useState('');
   const [newAddress, setNewAddress] = useState('');
+  const [newAddressType, setNewAddressType] = useState('ev');
   const [newNote, setNewNote] = useState('');
   const [kvkkChecked, setKvkkChecked] = useState(false);
-  const [directCustName, setDirectCustName] = useState('');
-  const [directCustPhone, setDirectCustPhone] = useState('');
-  const [directCustCompany, setDirectCustCompany] = useState('');
-  const [directCustAddress, setDirectCustAddress] = useState('');
+
+  // Firma Formu
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyPhone, setNewCompanyPhone] = useState('');
+  const [newCompanyTaxOffice, setNewCompanyTaxOffice] = useState('');
+  const [newCompanyTaxNumber, setNewCompanyTaxNumber] = useState('');
+  const [newCompanyAddress, setNewCompanyAddress] = useState('');
+
   const [selectedItems, setSelectedItems] = useState([]);
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState(0);
@@ -206,6 +214,7 @@ export default function App() {
   const updateWorkers = (newWork) => commitChange('workers', newWork, setWorkers, 'pevuno_workers');
   const updateJobs = (newJbs) => commitChange('jobs', newJbs, setJobs, 'pevuno_jobs');
   const updateCustomers = (newCust) => commitChange('customers', newCust, setCustomers, 'pevuno_customers');
+  const updateCompanies = (newComp) => commitChange('companies', newComp, setCompanies, 'pevuno_companies');
 
   const handleSaveKvkkTemplate = async (e) => {
     e.preventDefault();
@@ -213,11 +222,6 @@ export default function App() {
     localStorage.setItem('pevuno_kvkk', tempKvkkInput);
     await saveSupabaseData('kvkk_template', tempKvkkInput);
     alert('KVKK Mesaj Şablonu başarıyla güncellendi!');
-  };
-
-  const toggleCustomerKvkkStatus = (custId) => {
-    const updated = customers.map(c => c.id === custId ? { ...c, kvkk: !c.kvkk } : c);
-    updateCustomers(updated);
   };
 
   const formatWorkerNameMasked = (workerList) => {
@@ -312,25 +316,25 @@ export default function App() {
 
   const handleAddDirectCustomer = (e) => {
     e.preventDefault();
-    if (!directCustName || !directCustPhone) {
-      alert('Müşteri adı ve telefon numarası zorunludur.');
+    if (!newCustomerName || !newCustomerPhone || !newAddress) {
+      alert('Müşteri adı, telefon ve açık adres zorunludur.');
       return;
     }
     const newCustObj = {
       id: `CUST-${Date.now()}`,
-      name: directCustName,
-      phone: directCustPhone,
-      company: directCustCompany,
-      addresses: directCustAddress ? [directCustAddress] : [],
+      name: newCustomerName,
+      phone: newCustomerPhone,
+      address: newAddress,
+      addressType: newAddressType,
       kvkk: false,
       lastJobDate: 'Yeni Eklenen'
     };
     const updated = [...customers, newCustObj];
     updateCustomers(updated);
-    setDirectCustName('');
-    setDirectCustPhone('');
-    setDirectCustCompany('');
-    setDirectCustAddress('');
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    setNewAddress('');
+    setNewAddressType('ev');
     alert('Müşteri başarıyla kaydedildi!');
   };
 
@@ -341,21 +345,35 @@ export default function App() {
     }
   };
 
-  const handleSelectCustomerFromDropdown = (cust) => {
-    if (!cust) {
-      setSelectedExistingCustomer('');
-      setNewCustomerName('');
-      setNewCustomerPhone('');
-      setNewCompany('');
+  const handleAddCompany = (e) => {
+    e.preventDefault();
+    if (!newCompanyName || !newCompanyPhone || !newCompanyTaxOffice || !newCompanyTaxNumber) {
+      alert('Firma adı, telefon, vergi dairesi ve vergi numarası zorunludur.');
       return;
     }
-    setSelectedExistingCustomer(cust.id);
-    setNewCustomerName(cust.name);
-    setNewCustomerPhone(cust.phone);
-    setNewCompany(cust.company || '');
-    setKvkkChecked(cust.kvkk || false);
-    if (cust.addresses && cust.addresses.length > 0) {
-      setNewAddress(cust.addresses[0]);
+    const newCompObj = {
+      id: `COMP-${Date.now()}`,
+      name: newCompanyName,
+      phone: newCompanyPhone,
+      taxOffice: newCompanyTaxOffice,
+      taxNumber: newCompanyTaxNumber,
+      address: newCompanyAddress,
+      lastJobDate: 'Yeni Eklenen'
+    };
+    const updated = [...companies, newCompObj];
+    updateCompanies(updated);
+    setNewCompanyName('');
+    setNewCompanyPhone('');
+    setNewCompanyTaxOffice('');
+    setNewCompanyTaxNumber('');
+    setNewCompanyAddress('');
+    alert('Kurumsal firma başarıyla kaydedildi!');
+  };
+
+  const handleDeleteCompany = (compId) => {
+    if (confirm('Bu firmayı silmek istediğinize emin misiniz?')) {
+      const updatedList = companies.filter(c => c.id !== compId);
+      updateCompanies(updatedList);
     }
   };
 
@@ -406,9 +424,8 @@ export default function App() {
     const newJobObj = {
       id: `JOB-${Math.floor(1000 + Math.random() * 9000)}`,
       customerName: newCustomerName,
-      companyName: newCompany,
       phone: newCustomerPhone,
-      address: newAddress,
+      address: `${newAddress} (${newAddressType.toUpperCase()})`,
       note: newNote,
       items: selectedItems,
       subtotal,
@@ -435,15 +452,14 @@ export default function App() {
     let updatedCusts = [...customers];
     if (existingCustIndex > -1) {
       const cust = customers[existingCustIndex];
-      const updatedAddresses = cust.addresses.includes(newAddress) ? cust.addresses : [...cust.addresses, newAddress];
-      updatedCusts[existingCustIndex] = { ...cust, addresses: updatedAddresses, lastJobDate: jobDate, kvkk: kvkkChecked };
+      updatedCusts[existingCustIndex] = { ...cust, address: newAddress, addressType: newAddressType, lastJobDate: jobDate, kvkk: kvkkChecked };
     } else {
       updatedCusts.push({
         id: `CUST-${Date.now()}`,
         name: newCustomerName,
         phone: newCustomerPhone,
-        company: newCompany,
-        addresses: [newAddress],
+        address: newAddress,
+        addressType: newAddressType,
         kvkk: kvkkChecked,
         lastJobDate: jobDate
       });
@@ -451,11 +467,10 @@ export default function App() {
     updateCustomers(updatedCusts);
     setNewCustomerName('');
     setNewCustomerPhone('');
-    setNewCompany('');
     setNewAddress('');
+    setNewAddressType('ev');
     setNewNote('');
     setKvkkChecked(false);
-    setSelectedExistingCustomer('');
     setSelectedItems([]);
     setDiscountType('none');
     setDiscountValue(0);
@@ -537,37 +552,6 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
-  const sendWhatsAppNotificationToWorker = (job) => {
-    if (!job.assignedWorkers || job.assignedWorkers.length === 0) {
-      alert('Bu işe henüz personel atanmamış!');
-      return;
-    }
-    const workerName = job.assignedWorkers[0];
-    const workerObj = workers.find(w => w.name === workerName);
-    let targetPhone = workerObj?.phone || '';
-    if (!targetPhone) {
-      const manualPhone = prompt(`${workerName} için telefon numarası girin (Örn: 0532...):`);
-      if (!manualPhone) return;
-      targetPhone = manualPhone;
-    }
-    let msg = `🔔 *YENİ İŞ / RANDEVU ATAMASI*\n\n`;
-    msg += `👤 *Müşteri:* ${job.customerName}\n`;
-    msg += `📞 *Telefon:* ${job.phone}\n`;
-    msg += `📍 *Adres:* ${job.address}\n`;
-    msg += `📅 *Tarih / Saat:* ${job.date} - ${job.time || '10:00'}\n`;
-    msg += `⏱️ *Tahmini Süre:* ~${job.estimatedDurationMinutes || 60} Dakika\n`;
-    msg += `📋 *Hizmetler:*\n`;
-    job.items.forEach(i => {
-      msg += `• ${i.serviceName} x${i.qty}\n`;
-    });
-    if (job.note) msg += `📌 *Not:* ${job.note}\n`;
-    msg += `\nİyi çalışmalar dileriz! 🚀`;
-    const encoded = encodeURIComponent(msg);
-    const cleanPhone = targetPhone.replace(/\D/g, '');
-    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
-    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
-  };
-
   const sendKvkkApprovalRequest = (cust) => {
     const formattedMsg = kvkkTemplate.replace(/\[Müşteri Adı\]/g, cust.name);
     const encoded = encodeURIComponent(formattedMsg);
@@ -616,23 +600,6 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
-  const sendSixMonthReminder = (cust) => {
-    const daysPassed = getDaysSinceLastJob(cust.lastJobDate);
-    let msg = `Merhaba *${cust.name}*,\n\n`;
-    msg += `🌿 *PEVUNO SOLUTION* ailesi olarak sağlıklı günler dileriz.\n`;
-    if (daysPassed) {
-      msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden *${daysPassed} gün* geçti. Periyodik koltuk yıkama zamanınız gelmiştir.\n\n`;
-    } else {
-      msg += `Son profesyonel koltuk/halı temizliğinizin üzerinden yaklaşık 6 ay geçti. Periyodik koltuk yıkama zamanınız gelmiştir.\n\n`;
-    }
-    msg += `Randevu oluşturmamızı ister misiniz? 🧼✨`;
-    const encoded = encodeURIComponent(msg);
-    const cleanPhone = cust.phone.replace(/\D/g, '');
-    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
-    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
-  };
-
-  const totalRevenue = jobs.reduce((acc, j) => acc + j.totalAmount, 0);
   const totalCollected = jobs.reduce((acc, j) => acc + (Number(j.paidAmount) || 0), 0);
   const totalChemFund = jobs.reduce((acc, j) => acc + (j.chemFund || (j.totalAmount * 0.10)), 0);
   const totalAmortFund = jobs.reduce((acc, j) => acc + (j.amortFund || (j.totalAmount * 0.10)), 0);
@@ -641,12 +608,6 @@ export default function App() {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayJobsCount = jobs.filter(j => j.date === todayStr).length;
-
-  const filteredCustomersForJob = customers.filter(c => 
-    c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-    c.phone.includes(customerSearchQuery) ||
-    (c.company && c.company.toLowerCase().includes(customerSearchQuery.toLowerCase()))
-  );
 
   const reminderEligibleCustomers = customers.filter(c => {
     if (!c.kvkk) return false;
@@ -748,7 +709,7 @@ export default function App() {
                 </button>
                 <button onClick={() => setActiveTab('customers')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'customers' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <BookOpen className="w-4 h-4" />
-                  <span>Müşteriler</span>
+                  <span>Müşteriler & Firmalar</span>
                 </button>
                 <button onClick={() => setActiveTab('workers')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'workers' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <Users className="w-4 h-4" />
@@ -1036,30 +997,81 @@ export default function App() {
           </div>
         )}
 
-        {/* MÜŞTERİLER SEKMESİ */}
+        {/* MÜŞTERİLER & FİRMALAR SEKMESİ */}
         {activeTab === 'customers' && currentUser.role === 'admin' && (
-          <div className="space-y-6 max-w-4xl mx-auto">
+          <div className="space-y-8 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Müşteri Rehberi & KVKK Onayları</h2>
-              <form onSubmit={handleAddDirectCustomer} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Müşteri Adı" value={directCustName} onChange={(e) => setDirectCustName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Telefon (0532...)" value={directCustPhone} onChange={(e) => setDirectCustPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" placeholder="Firma Adı" value={directCustCompany} onChange={(e) => setDirectCustCompany(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow">Müşteri Ekle</button>
+              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                <Users className="w-5 h-5 text-emerald-600" />
+                <span>Bireysel Müşteri Ekle</span>
+              </h2>
+              <form onSubmit={handleAddDirectCustomer} className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <input type="text" required placeholder="Müşteri Adı Soyadı" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Telefon (0532...)" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <input type="text" required placeholder="Açık Adres" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white sm:col-span-2" />
+                  <select value={newAddressType} onChange={(e) => setNewAddressType(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-bold">
+                    <option value="ev">🏠 Ev</option>
+                    <option value="işyeri">🏢 İşyeri</option>
+                    <option value="diğer">📍 Diğer</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2 text-right">
+                  <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Müşteriyi Kaydet</button>
+                </div>
               </form>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mt-4">
                 {customers.map((cust) => (
                   <div key={cust.id} className="p-4 flex items-center justify-between bg-white">
                     <div>
                       <h4 className="font-bold text-slate-800 text-sm">{cust.name} ({cust.phone})</h4>
-                      <p className="text-xs text-slate-500">{cust.company || 'Bireysel'}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">📍 {cust.address} <span className="font-bold text-emerald-700">({cust.addressType?.toUpperCase() || 'EV'})</span></p>
                     </div>
                     <div className="flex items-center space-x-2">
                       <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-lg text-xs font-bold">KVKK Onay İste (WP)</button>
-                      <button onClick={() => handleDeleteCustomer(cust.id)} className="text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteCustomer(cust.id)} className="text-rose-500 p-1" title="Sil"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
+                {customers.length === 0 && (
+                  <div className="p-6 text-center text-slate-400 text-xs">Henüz kayıtlı bireysel müşteri yok.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                <Building2 className="w-5 h-5 text-blue-600" />
+                <span>Kurumsal Firma Ekle (Vergi Detaylı)</span>
+              </h2>
+              <form onSubmit={handleAddCompany} className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <input type="text" required placeholder="Firma Adı" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Firma Telefonu" value={newCompanyPhone} onChange={(e) => setNewCompanyPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Vergi Dairesi" value={newCompanyTaxOffice} onChange={(e) => setNewCompanyTaxOffice(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Vergi Numarası" value={newCompanyTaxNumber} onChange={(e) => setNewCompanyTaxNumber(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" placeholder="Firma Açık Adresi" value={newCompanyAddress} onChange={(e) => setNewCompanyAddress(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white sm:col-span-2" />
+                <div className="sm:col-span-2 text-right">
+                  <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Firmayı Kaydet</button>
+                </div>
+              </form>
+
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mt-4">
+                {companies.map((comp) => (
+                  <div key={comp.id} className="p-4 flex items-center justify-between bg-white">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm">{comp.name} ({comp.phone})</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Vergi Dairesi: <strong className="text-slate-700">{comp.taxOffice}</strong> | Vergi No: <strong className="text-slate-700">{comp.taxNumber}</strong>
+                      </p>
+                      {comp.address && <p className="text-xs text-slate-400 mt-0.5">📍 {comp.address}</p>}
+                    </div>
+                    <button onClick={() => handleDeleteCompany(comp.id)} className="text-rose-500 p-1" title="Sil"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                {companies.length === 0 && (
+                  <div className="p-6 text-center text-slate-400 text-xs">Henüz kayıtlı kurumsal firma yok.</div>
+                )}
               </div>
             </div>
           </div>
