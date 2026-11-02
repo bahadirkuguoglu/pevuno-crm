@@ -101,7 +101,7 @@ export default function App() {
   const [workers, setWorkers] = useState(() => {
     const saved = localStorage.getItem('pevuno_workers');
     return saved ? JSON.parse(saved) : [
-      { id: 'admin-1', username: 'bahadir', name: 'Bahadır (Yönetici)', pin: '1453', role: 'admin', phone: '' }
+      { id: 'admin-1', username: 'bahadir', name: 'Bahadır', pin: '1453', role: 'admin', phone: '' }
     ];
   });
   const [jobs, setJobs] = useState(() => {
@@ -184,7 +184,6 @@ export default function App() {
   
   const [selectedWorkers, setSelectedWorkers] = useState([]);
   
-  // Personel / Kullanıcı Ekleme State'leri
   const [newWorkerUsername, setNewWorkerUsername] = useState('');
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerPin, setNewWorkerPin] = useState('');
@@ -250,7 +249,6 @@ export default function App() {
   const calculatedDiscount = calculateDiscount();
   const finalTotal = Math.max(0, subtotal - calculatedDiscount);
 
-  // KULLANICI ADI & ŞİFRE İLE GİRİŞ SİSTEMİ
   const handleLogin = (e) => {
     e.preventDefault();
     const inputUser = loginUsername.trim().toLowerCase();
@@ -269,7 +267,6 @@ export default function App() {
     }
   };
 
-  // YENİ KULLANICI / YÖNETİCİ EKLEME
   const handleAddWorker = (e) => {
     e.preventDefault();
     if (!newWorkerName || !newWorkerPin || !newWorkerUsername) {
@@ -650,7 +647,6 @@ export default function App() {
     .filter(j => currentUser?.role === 'admin' || j.assignedWorkers?.includes(currentUser?.name))
     .sort((a, b) => new Date(`${a.date}T${a.time || '10:00'}`) - new Date(`${b.date}T${b.time || '10:00'}`));
 
-  // KULLANICI GİRİŞ EKRANI (Kullanıcı Adı & Şifre)
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -698,11 +694,13 @@ export default function App() {
     );
   }
 
+  // Rol unvanını tekilleştirme (Çift (Yönetici) sorununu kökten çözer)
+  const roleTitleText = currentUser.role === 'admin' ? 'Yönetici' : 'Personel';
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-black rounded-full border border-white/30 flex items-center justify-center shadow-md overflow-hidden shrink-0 p-0.5">
               <svg viewBox="0 0 200 200" className="w-full h-full text-white">
@@ -714,15 +712,11 @@ export default function App() {
             </div>
             <div>
               <h1 className="font-extrabold text-base sm:text-lg tracking-tight leading-tight">PEVUNO SOLUTION</h1>
-              <p className="text-[11px] text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name} ({currentUser.role === 'admin' ? 'Yönetici' : 'Personel'})</strong></p>
+              <p className="text-[11px] text-slate-400">Aktif Kullanıcı: <strong className="text-emerald-400">{currentUser.name} ({roleTitleText})</strong></p>
             </div>
           </div>
           <div className="flex items-center space-x-2 shrink-0">
-            <button 
-              onClick={syncWithCloud} 
-              className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs px-2.5 py-1.5 rounded-xl font-medium flex items-center space-x-1 hover:bg-emerald-500/30 transition whitespace-nowrap"
-              title="Bulut ile Senkronize Et"
-            >
+            <button onClick={syncWithCloud} className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs px-2.5 py-1.5 rounded-xl font-medium flex items-center space-x-1 hover:bg-emerald-500/30 transition whitespace-nowrap">
               <Cloud className="w-3.5 h-3.5" />
               <span>{isSynced ? '🔄 Eşitle' : '⏳ Bekleyin'}</span>
             </button>
@@ -733,10 +727,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* MENÜ SEKMELERİ */}
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
-            
             {currentUser.role === 'admin' && (
               <>
                 <button onClick={() => setActiveTab('dashboard')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
@@ -778,15 +770,15 @@ export default function App() {
               <>
                 <button onClick={() => setActiveTab('worker-dashboard')} className={`px-4 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'worker-dashboard' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <TrendingUp className="w-4 h-4" />
-                  <span>📊 1. Özet & Hakediş</span>
+                  <span>📊 Özet & Hakediş</span>
                 </button>
                 <button onClick={() => setActiveTab('jobs')} className={`px-4 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'jobs' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <ShoppingBag className="w-4 h-4" />
-                  <span>🚗 2. Aktif İşler</span>
+                  <span>🚗 Aktif İşler</span>
                 </button>
                 <button onClick={() => setActiveTab('worker-completed')} className={`px-4 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'worker-completed' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>✅ 3. Tamamlanan İşler</span>
+                  <span>✅ Tamamlanan İşler</span>
                 </button>
               </>
             )}
@@ -808,6 +800,7 @@ export default function App() {
               </button>
             </div>
 
+            {/* Finansal Kartlar: Mobilde Net Kâr tam boy tutularak bozulma engellendi */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Tahsil Edilen</span>
@@ -849,30 +842,34 @@ export default function App() {
                 <div className="text-2xl font-black text-amber-600">{jobs.filter(j => j.status !== 'Tamamlandı').length} İş</div>
               </div>
             </div>
+          </div>
+        )}
 
+        {/* KULLANICILAR & ŞİFRELER SEKMESİ (Şifreler artık açıkça listede görünür) */}
+        {activeTab === 'workers' && currentUser.role === 'admin' && (
+          <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
-                <Navigation className="w-5 h-5 text-emerald-600" />
-                <span>🧭 Canlı Saha Rota ve Zamanlama Takibi</span>
-              </h3>
-              <div className="space-y-2">
-                {sortedJobsForUser.filter(j => j.status !== 'Tamamlandı').map((job, idx) => (
-                  <div key={job.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs">
+              <h2 className="text-xl font-bold text-slate-900">Kullanıcı Adı, Rol ve Şifre Yönetimi</h2>
+              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <input type="text" required placeholder="Kullanıcı Adı" value={newWorkerUsername} onChange={(e) => setNewWorkerUsername(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Ad Soyad" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Şifre / PIN" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
+                <select value={newWorkerRole} onChange={(e) => setNewWorkerRole(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-bold">
+                  <option value="worker">👷 Saha</option>
+                  <option value="admin">👑 Yönetici</option>
+                </select>
+                <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow">Kullanıcı Ekle</button>
+              </form>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {workers.map((w) => (
+                  <div key={w.id} className="p-4 flex items-center justify-between bg-white">
                     <div>
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-mono bg-slate-900 text-emerald-400 px-2 py-0.5 rounded font-bold">Sıra: #{idx + 1}</span>
-                        <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">📅 {job.date} - ⏰ {job.time || '10:00'}</span>
-                        {job.estimatedDurationMinutes && (
-                          <span className="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded">⏱️ ~{job.estimatedDurationMinutes} dk</span>
-                        )}
-                      </div>
-                      <strong className="text-sm text-slate-900">{job.customerName}</strong>
-                      <p className="text-slate-600 mt-0.5">📍 {job.address}</p>
+                      <h4 className="font-bold text-slate-800 text-sm">{w.name} ({w.role === 'admin' ? 'Yönetici' : 'Saha'})</h4>
+                      <p className="text-xs text-slate-500 font-mono mt-0.5">
+                        Kullanıcı Adı: <strong className="text-slate-800">{w.username || '-'}</strong> | Şifre: <strong className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">{w.pin}</strong>
+                      </p>
                     </div>
-                    <div className="text-right sm:border-l sm:border-slate-200 sm:pl-4">
-                      <span className="text-slate-500 block">Görevli Ekip</span>
-                      <strong className="text-emerald-700 font-bold">{job.assignedWorkers?.join(', ') || 'Atanmadı'}</strong>
-                    </div>
+                    <button onClick={() => handleDeleteWorker(w.id)} className="text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>
@@ -880,43 +877,7 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'worker-dashboard' && currentUser.role === 'worker' && (
-          <div className="space-y-6 max-w-3xl mx-auto">
-            <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-3xl text-white shadow-lg space-y-2">
-              <h2 className="text-2xl font-black">Merhaba, {currentUser.name} 👷</h2>
-              <p className="text-xs text-slate-300">Pevuno Solution Saha Performans ve Hakediş Özet Paneli</p>
-            </div>
-
-            {(() => {
-              const myAllJobs = jobs.filter(j => j.assignedWorkers?.includes(currentUser.name));
-              const myCompletedJobs = myAllJobs.filter(j => j.status === 'Tamamlandı');
-              const myActiveJobs = myAllJobs.filter(j => j.status !== 'Tamamlandı');
-              
-              const myTotalEarnings = myCompletedJobs.reduce((acc, j) => {
-                const detail = j.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
-                return acc + (detail ? Number(detail.amount) : 0);
-              }, 0);
-
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Toplam Hakediş (Kazanç)</span>
-                    <div className="text-2xl font-black text-emerald-600">{Math.round(myTotalEarnings)} TL</div>
-                  </div>
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Tamamlanan İşler</span>
-                    <div className="text-2xl font-black text-blue-600">{myCompletedJobs.length} İş</div>
-                  </div>
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Aktif Bekleyen İşler</span>
-                    <div className="text-2xl font-black text-amber-600">{myActiveJobs.length} İş</div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
+        {/* DİĞER SEKMELER (Aktif İşler, Yeni İş, Fiyatlar vb.) */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
@@ -925,7 +886,6 @@ export default function App() {
                 <span>{currentUser.role === 'admin' ? 'Aktif Saha İşleri & Rota Listesi' : 'Aktif Görev Akışı & Rotam'}</span>
               </h2>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedJobsForUser.filter(job => job.status !== 'Tamamlandı').map((job, index) => (
                 <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
@@ -971,125 +931,6 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'admin-completed' && currentUser.role === 'admin' && (
-          <div className="space-y-4">
-            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow">
-              <h2 className="text-lg font-bold flex items-center space-x-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <span>Tamamlanan İşler Arşivi ({jobs.filter(j => j.status === 'Tamamlandı').length})</span>
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {jobs.filter(job => job.status === 'Tamamlandı').map((job) => (
-                <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-200 space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-lg">✅ TAMAMLANDI</span>
-                    <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">📅 {job.date}</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900">{job.customerName}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">📍 {job.address}</p>
-                  </div>
-                  <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-                    <span className="text-slate-500">Tutar: <strong>{job.totalAmount} TL</strong></span>
-                    <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg border border-slate-200">
-                      Servis Fişi
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'worker-completed' && currentUser.role === 'worker' && (
-          <div className="space-y-4">
-            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow">
-              <h2 className="text-lg font-bold flex items-center space-x-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <span>Tamamlanan İşler Arşivi</span>
-              </h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {jobs.filter(job => job.assignedWorkers?.includes(currentUser.name) && job.status === 'Tamamlandı').map((job) => (
-                <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-200 space-y-4">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-lg">✅ TAMAMLANDI</span>
-                    <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">📅 {job.date}</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-900">{job.customerName}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">📍 {job.address}</p>
-                  </div>
-                  <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-                    <span className="text-slate-500">Ödeme: <strong>{job.paymentMethod}</strong></span>
-                    <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg border border-slate-200">
-                      Servis Fişini Gör
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'customers' && currentUser.role === 'admin' && (
-          <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Müşteri Rehberi & KVKK Onayları</h2>
-              <form onSubmit={handleAddDirectCustomer} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Müşteri Adı" value={directCustName} onChange={(e) => setDirectCustName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Telefon (0532...)" value={directCustPhone} onChange={(e) => setDirectCustPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" placeholder="Firma Adı" value={directCustCompany} onChange={(e) => setDirectCustCompany(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow">Müşteri Ekle</button>
-              </form>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {customers.map((cust) => (
-                  <div key={cust.id} className="p-4 flex items-center justify-between bg-white">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{cust.name} ({cust.phone})</h4>
-                      <p className="text-xs text-slate-500">{cust.company || 'Bireysel'}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-lg text-xs font-bold">KVKK Onay İste (WP)</button>
-                      <button onClick={() => handleDeleteCustomer(cust.id)} className="text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'workers' && currentUser.role === 'admin' && (
-          <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Kullanıcı Adı, Rol ve Şifre Yönetimi</h2>
-              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Kullanıcı Adı" value={newWorkerUsername} onChange={(e) => setNewWorkerUsername(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Ad Soyad" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="password" required placeholder="Şifre" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <select value={newWorkerRole} onChange={(e) => setNewWorkerRole(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-bold">
-                  <option value="worker">👷 Saha</option>
-                  <option value="admin">👑 Yönetici</option>
-                </select>
-                <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow">Kullanıcı Ekle</button>
-              </form>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {workers.map((w) => (
-                  <div key={w.id} className="p-4 flex items-center justify-between bg-white">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{w.name} ({w.role === 'admin' ? 'Yönetici' : 'Saha'})</h4>
-                      <span className="text-xs text-slate-500 font-mono">Kullanıcı Adı: {w.username}</span>
-                    </div>
-                    <button onClick={() => handleDeleteWorker(w.id)} className="text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1111,18 +952,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'reminders' && currentUser.role === 'admin' && (
-          <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">WhatsApp KVKK Şablonu</h2>
-              <form onSubmit={handleSaveKvkkTemplate} className="space-y-3">
-                <textarea rows={6} value={tempKvkkInput} onChange={(e) => setTempKvkkInput(e.target.value)} className="w-full border rounded-xl p-3 text-xs font-mono bg-slate-50" />
-                <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-2 rounded-xl text-xs">Şablonu Kaydet</button>
-              </form>
             </div>
           </div>
         )}
@@ -1206,62 +1035,6 @@ export default function App() {
           </div>
         )}
       </main>
-
-      {/* SERVİS FİŞİ MODALI */}
-      {selectedJobForReceipt && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
-            <div ref={receiptRef} className="bg-white p-4 border border-slate-100 rounded-2xl space-y-4">
-              <div className="border-b border-slate-200 pb-4 text-center space-y-1">
-                <h2 className="text-2xl font-extrabold text-slate-900 tracking-wider">PEVUNO SOLUTION</h2>
-                <p className="text-xs text-slate-500 font-semibold">Profesyonel Temizlik & Hijyen Servis Fişi</p>
-                <p className="text-xs font-bold text-emerald-700 mt-1">Saha Ekip: {formatWorkerNameMasked(selectedJobForReceipt.assignedWorkers)}</p>
-              </div>
-              <div className="text-xs space-y-1.5 text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <p><strong>Müşteri:</strong> {selectedJobForReceipt.customerName}</p>
-                <p><strong>Telefon:</strong> {selectedJobForReceipt.phone}</p>
-                <p><strong>Adres:</strong> {selectedJobForReceipt.address}</p>
-                <p><strong>Randevu Tarihi:</strong> {selectedJobForReceipt.date} - {selectedJobForReceipt.time}</p>
-                <p><strong>Ödeme Şekli:</strong> {selectedJobForReceipt.paymentMethod}</p>
-              </div>
-              <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-                <table className="w-full text-left divide-y divide-slate-200">
-                  <thead className="bg-slate-100 font-bold text-slate-800">
-                    <tr>
-                      <th className="p-2.5">Hizmet</th>
-                      <th className="p-2.5 text-center">Adet</th>
-                      <th className="p-2.5 text-right">Tutar</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {selectedJobForReceipt.items.map((i, idx) => (
-                      <tr key={idx}>
-                        <td className="p-2.5 font-medium">{i.serviceName}</td>
-                        <td className="p-2.5 text-center">{i.qty}</td>
-                        <td className="p-2.5 text-right font-bold">{i.qty * i.unitPrice} TL</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="pt-2 text-right">
-                <p className="text-xs text-slate-500">Toplam Tutar</p>
-                <p className="text-xl font-black text-emerald-700">{selectedJobForReceipt.totalAmount} TL</p>
-              </div>
-            </div>
-            <div className="space-y-2 pt-2">
-              <button onClick={downloadReceiptAsImage} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow flex items-center justify-center space-x-2 transition">
-                <Download className="w-4 h-4" />
-                <span>📸 Fiş Görselini İndir (JPEG - WP İçin)</span>
-              </button>
-              <div className="flex space-x-2">
-                <button onClick={() => window.print()} className="flex-1 bg-slate-900 hover:bg-black text-white font-bold py-2.5 rounded-xl text-xs shadow">Yazdır / PDF</button>
-                <button onClick={() => setSelectedJobForReceipt(null)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs border border-slate-200">Kapat</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
