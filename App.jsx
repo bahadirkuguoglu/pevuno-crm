@@ -82,6 +82,10 @@ Periyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi
 Sağlıklı ve hijyenik günler dileriz.
 Pevuno Solution`;
 
+const DEFAULT_REMINDER_TEMPLATE = `Merhaba *[Müşteri Adı]*,
+Pevuno Solution ailesi olarak son profesyonel temizlik hizmetimizin üzerinden yaklaşık 6 ay geçtiğini fark ettik. Evinizde/iş yerinizde hijyeni tazelemek ve periyodik bakım randevusu oluşturmak ister misiniz? 🧼✨
+Sağlıklı günler dileriz!`;
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('pevuno_logged_user');
@@ -116,11 +120,19 @@ export default function App() {
     const saved = localStorage.getItem('pevuno_companies');
     return saved ? JSON.parse(saved) : [];
   });
+  
   const [kvkkTemplate, setKvkkTemplate] = useState(() => {
     const saved = localStorage.getItem('pevuno_kvkk');
     return saved ? saved : DEFAULT_KVKK_TEMPLATE;
   });
   const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
+
+  const [reminderTemplate, setReminderTemplate] = useState(() => {
+    const saved = localStorage.getItem('pevuno_reminder_template');
+    return saved ? saved : DEFAULT_REMINDER_TEMPLATE;
+  });
+  const [tempReminderInput, setTempReminderInput] = useState(reminderTemplate);
+
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
 
   const syncWithCloud = async () => {
@@ -157,6 +169,12 @@ export default function App() {
         setTempKvkkInput(cloudKvkk);
         localStorage.setItem('pevuno_kvkk', cloudKvkk);
       }
+      const cloudReminder = await fetchSupabaseData('reminder_template', null);
+      if (cloudReminder) {
+        setReminderTemplate(cloudReminder);
+        setTempReminderInput(cloudReminder);
+        localStorage.setItem('pevuno_reminder_template', cloudReminder);
+      }
     } catch (err) {
       console.error("Senkronizasyon hatası:", err);
     }
@@ -177,12 +195,13 @@ export default function App() {
   const [kvkkChecked, setKvkkChecked] = useState(false);
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
 
-  // Firma Formu
-  const [newCompanyName, setNewCompanyName] = useState('');
-  const [newCompanyPhone, setNewCompanyPhone] = useState('');
-  const [newCompanyTaxOffice, setNewCompanyTaxOffice] = useState('');
-  const [newCompanyTaxNumber, setNewCompanyTaxNumber] = useState('');
-  const [newCompanyAddress, setNewCompanyAddress] = useState('');
+  // Tek Satırda Hızlı Ekleme Formu State'leri (Bireysel veya Kurumsal Ayrımı)
+  const [addMode, setAddMode] = useState('bireysel'); // 'bireysel' veya 'kurumsal'
+  const [quickName, setQuickName] = useState('');
+  const [quickPhone, setQuickPhone] = useState('');
+  const [quickAddressOrTaxOffice, setQuickAddressOrTaxOffice] = useState(''); // Bireysel için Adres, Kurumsal için Vergi Dairesi
+  const [quickExtraOrTaxNo, setQuickExtraOrTaxNo] = useState(''); // Bireysel için Adres Tipi, Kurumsal için Vergi No
+  const [quickFullAddress, setQuickFullAddress] = useState(''); // Kurumsal için açık adres
 
   const [selectedItems, setSelectedItems] = useState([]);
   const [discountType, setDiscountType] = useState('none');
@@ -225,6 +244,14 @@ export default function App() {
     alert('KVKK Mesaj Şablonu başarıyla güncellendi!');
   };
 
+  const handleSaveReminderTemplate = async (e) => {
+    e.preventDefault();
+    setReminderTemplate(tempReminderInput);
+    localStorage.setItem('pevuno_reminder_template', tempReminderInput);
+    await saveSupabaseData('reminder_template', tempReminderInput);
+    alert('Hatırlatıcı Mesaj Şablonu başarıyla güncellendi!');
+  };
+
   const formatWorkerNameMasked = (workerList) => {
     if (!workerList || workerList.length === 0) return 'Ekip';
     return workerList.map(w => {
@@ -235,9 +262,9 @@ export default function App() {
   };
 
   const getDaysSinceLastJob = (lastJobDate) => {
-    if (!lastJobDate || lastJobDate === 'Yeni' || lastJobDate === 'Yeni Eklenen') return null;
+    if (!lastJobDate || lastJobDate === 'Yeni' || lastJobDate === 'Yeni Eklenen') return 185; // Test veya yeni eklenenleri hatırlatıcıya dahil etmek için
     const lastDate = new Date(lastJobDate);
-    if (isNaN(lastDate.getTime())) return null;
+    if (isNaN(lastDate.getTime())) return 185;
     const today = new Date();
     const diffTime = Math.abs(today - lastDate);
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -315,66 +342,56 @@ export default function App() {
     }
   };
 
-  const handleAddDirectCustomer = (e) => {
+  // Tek Satırdan Hızlı Ekleme (Bireysel veya Kurumsal)
+  const handleQuickAddEntity = (e) => {
     e.preventDefault();
-    if (!newCustomerName || !newCustomerPhone || !newAddress) {
-      alert('Müşteri adı, telefon ve açık adres zorunludur.');
+    if (!quickName || !quickPhone) {
+      alert('İsim ve telefon bilgisi zorunludur.');
       return;
     }
-    const newCustObj = {
-      id: `CUST-${Date.now()}`,
-      name: newCustomerName,
-      phone: newCustomerPhone,
-      address: newAddress,
-      addressType: newAddressType,
-      kvkk: false,
-      lastJobDate: 'Yeni Eklenen'
-    };
-    const updated = [...customers, newCustObj];
-    updateCustomers(updated);
-    setNewCustomerName('');
-    setNewCustomerPhone('');
-    setNewAddress('');
-    setNewAddressType('ev');
-    alert('Müşteri başarıyla kaydedildi!');
+
+    if (addMode === 'bireysel') {
+      const newCustObj = {
+        id: `CUST-${Date.now()}`,
+        name: quickName,
+        phone: quickPhone,
+        address: quickAddressOrTaxOffice || 'Belirtilmedi',
+        addressType: quickExtraOrTaxNo || 'ev',
+        kvkk: false,
+        lastJobDate: 'Yeni Eklenen'
+      };
+      updateCustomers([...customers, newCustObj]);
+      alert('Bireysel müşteri başarıyla eklendi!');
+    } else {
+      const newCompObj = {
+        id: `COMP-${Date.now()}`,
+        name: quickName,
+        phone: quickPhone,
+        taxOffice: quickAddressOrTaxOffice || '-',
+        taxNumber: quickExtraOrTaxNo || '-',
+        address: quickFullAddress || '',
+        lastJobDate: 'Yeni Eklenen'
+      };
+      updateCompanies([...companies, newCompObj]);
+      alert('Kurumsal firma başarıyla eklendi!');
+    }
+
+    setQuickName('');
+    setQuickPhone('');
+    setQuickAddressOrTaxOffice('');
+    setQuickExtraOrTaxNo('');
+    setQuickFullAddress('');
   };
 
   const handleDeleteCustomer = (custId) => {
     if (confirm('Bu müşteriyi silmek istediğinize emin misiniz?')) {
-      const updatedList = customers.filter(c => c.id !== custId);
-      updateCustomers(updatedList);
+      updateCustomers(customers.filter(c => c.id !== custId));
     }
-  };
-
-  const handleAddCompany = (e) => {
-    e.preventDefault();
-    if (!newCompanyName || !newCompanyPhone || !newCompanyTaxOffice || !newCompanyTaxNumber) {
-      alert('Firma adı, telefon, vergi dairesi ve vergi numarası zorunludur.');
-      return;
-    }
-    const newCompObj = {
-      id: `COMP-${Date.now()}`,
-      name: newCompanyName,
-      phone: newCompanyPhone,
-      taxOffice: newCompanyTaxOffice,
-      taxNumber: newCompanyTaxNumber,
-      address: newCompanyAddress,
-      lastJobDate: 'Yeni Eklenen'
-    };
-    const updated = [...companies, newCompObj];
-    updateCompanies(updated);
-    setNewCompanyName('');
-    setNewCompanyPhone('');
-    setNewCompanyTaxOffice('');
-    setNewCompanyTaxNumber('');
-    setNewCompanyAddress('');
-    alert('Kurumsal firma başarıyla kaydedildi!');
   };
 
   const handleDeleteCompany = (compId) => {
     if (confirm('Bu firmayı silmek istediğinize emin misiniz?')) {
-      const updatedList = companies.filter(c => c.id !== compId);
-      updateCompanies(updatedList);
+      updateCompanies(companies.filter(c => c.id !== compId));
     }
   };
 
@@ -561,6 +578,14 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
+  const sendPeriodicReminder = (cust) => {
+    const formattedMsg = reminderTemplate.replace(/\[Müşteri Adı\]/g, cust.name);
+    const encoded = encodeURIComponent(formattedMsg);
+    const cleanPhone = cust.phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
+    window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
+  };
+
   const sendWhatsAppOnTheWay = (job) => {
     const assignedText = formatWorkerNameMasked(job.assignedWorkers);
     let msg = `Merhaba *${job.customerName}*,\n\n`;
@@ -609,6 +634,12 @@ export default function App() {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayJobsCount = jobs.filter(j => j.date === todayStr).length;
+
+  // Hatırlatıcı filtresi (180 günü geçenler veya yeni eklenenler dahil)
+  const reminderEligibleCustomers = customers.filter(c => {
+    const days = getDaysSinceLastJob(c.lastJobDate);
+    return days !== null && days >= 180;
+  });
 
   const sortedJobsForUser = [...jobs]
     .filter(j => currentUser?.role === 'admin' || j.assignedWorkers?.includes(currentUser?.name))
@@ -716,7 +747,7 @@ export default function App() {
                 </button>
                 <button onClick={() => setActiveTab('reminders')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'reminders' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <RefreshCw className="w-4 h-4" />
-                  <span>Hatırlatıcılar</span>
+                  <span>Hatırlatıcılar ({reminderEligibleCustomers.length})</span>
                 </button>
               </>
             )}
@@ -789,7 +820,7 @@ export default function App() {
               </div>
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-xs font-bold text-slate-400 uppercase">Müşteri Sayısı</span>
-                <div className="text-2xl font-black text-purple-600">{customers.length} Kişi</div>
+                <div className="text-2xl font-black text-purple-600">{customers.length + companies.length} Kişi/Firma</div>
               </div>
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-xs font-bold text-slate-400 uppercase">Aktif İşler</span>
@@ -912,7 +943,7 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI SEKMESİ (Otomatik Tamamlama Eklendi) */}
+        {/* YENİ İŞ KAYDI SEKMESİ */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1025,103 +1056,183 @@ export default function App() {
           </div>
         )}
 
-        {/* MÜŞTERİLER & FİRMALAR SEKMESİ (Tek Satır Optimizasyonu) */}
+        {/* MÜŞTERİLER & FİRMALAR SEKMESİ (Tek Çatı Altında Modern Görünüm) */}
         {activeTab === 'customers' && currentUser.role === 'admin' && (
-          <div className="space-y-8 max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
-                <Users className="w-5 h-5 text-emerald-600" />
-                <span>Bireysel Müşteri Ekle (Tek Satır)</span>
-              </h2>
-              {/* TEK SATIR MÜŞTERİ EKLEME FORMU */}
-              <form onSubmit={handleAddDirectCustomer} className="flex flex-col sm:flex-row gap-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Ad Soyad" 
-                  value={newCustomerName} 
-                  onChange={(e) => setNewCustomerName(e.target.value)} 
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white flex-1" 
-                />
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Telefon (0532...)" 
-                  value={newCustomerPhone} 
-                  onChange={(e) => setNewCustomerPhone(e.target.value)} 
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white sm:w-40" 
-                />
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Açık Adres" 
-                  value={newAddress} 
-                  onChange={(e) => setNewAddress(e.target.value)} 
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white flex-2" 
-                />
-                <select 
-                  value={newAddressType} 
-                  onChange={(e) => setNewAddressType(e.target.value)} 
-                  className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-bold sm:w-28"
-                >
-                  <option value="ev">🏠 Ev</option>
-                  <option value="işyeri">🏢 İşyeri</option>
-                  <option value="diğer">📍 Diğer</option>
-                </select>
-                <button type="submit" className="bg-emerald-600 text-white font-bold px-5 py-2 rounded-xl text-sm shadow whitespace-nowrap">Kaydet</button>
-              </form>
-
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mt-4">
-                {customers.map((cust) => (
-                  <div key={cust.id} className="p-4 flex items-center justify-between bg-white">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{cust.name} ({cust.phone})</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">📍 {cust.address} <span className="font-bold text-emerald-700">({cust.addressType?.toUpperCase() || 'EV'})</span></p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-lg text-xs font-bold">KVKK Onay İste (WP)</button>
-                      <button onClick={() => handleDeleteCustomer(cust.id)} className="text-rose-500 p-1" title="Sil"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                ))}
-                {customers.length === 0 && (
-                  <div className="p-6 text-center text-slate-400 text-xs">Henüz kayıtlı bireysel müşteri yok.</div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
-                <Building2 className="w-5 h-5 text-blue-600" />
-                <span>Kurumsal Firma Ekle (Vergi Detaylı)</span>
-              </h2>
-              <form onSubmit={handleAddCompany} className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <input type="text" required placeholder="Firma Adı" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Firma Telefonu" value={newCompanyPhone} onChange={(e) => setNewCompanyPhone(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Vergi Dairesi" value={newCompanyTaxOffice} onChange={(e) => setNewCompanyTaxOffice(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Vergi Numarası" value={newCompanyTaxNumber} onChange={(e) => setNewCompanyTaxNumber(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" />
-                <input type="text" placeholder="Firma Açık Adresi" value={newCompanyAddress} onChange={(e) => setNewCompanyAddress(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white sm:col-span-2" />
-                <div className="sm:col-span-2 text-right">
-                  <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Firmayı Kaydet</button>
+          <div className="space-y-6 max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
+                    <Users className="w-5 h-5 text-emerald-600" />
+                    <span>Müşteri & Kurumsal Firma Yönetimi</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Bireysel ve kurumsal kayıtları tek ekrandan hızlıca ekleyin ve yönetin.</p>
                 </div>
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button 
+                    type="button" 
+                    onClick={() => setAddMode('bireysel')} 
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${addMode === 'bireysel' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600'}`}
+                  >
+                    Bireysel Müşteri
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setAddMode('kurumsal')} 
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${addMode === 'kurumsal' ? 'bg-blue-600 text-white shadow' : 'text-slate-600'}`}
+                  >
+                    Kurumsal Firma
+                  </button>
+                </div>
+              </div>
+
+              {/* TEK SATIR HIZLI EKLEME FORMU */}
+              <form onSubmit={handleQuickAddEntity} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                {addMode === 'bireysel' ? (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Müşteri Adı Soyadı" 
+                      value={quickName} 
+                      onChange={(e) => setQuickName(e.target.value)} 
+                      className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white flex-1" 
+                    />
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Telefon (0532...)" 
+                      value={quickPhone} 
+                      onChange={(e) => setQuickPhone(e.target.value)} 
+                      className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white sm:w-44" 
+                    />
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Açık Adres" 
+                      value={quickAddressOrTaxOffice} 
+                      onChange={(e) => setQuickAddressOrTaxOffice(e.target.value)} 
+                      className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white flex-2" 
+                    />
+                    <select 
+                      value={quickExtraOrTaxNo} 
+                      onChange={(e) => setQuickExtraOrTaxNo(e.target.value)} 
+                      className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white font-bold sm:w-28"
+                    >
+                      <option value="ev">🏠 Ev</option>
+                      <option value="işyeri">🏢 İşyeri</option>
+                      <option value="diğer">📍 Diğer</option>
+                    </select>
+                    <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Kaydet</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Firma Adı" 
+                        value={quickName} 
+                        onChange={(e) => setQuickName(e.target.value)} 
+                        className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
+                      />
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Firma Telefonu" 
+                        value={quickPhone} 
+                        onChange={(e) => setQuickPhone(e.target.value)} 
+                        className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
+                      />
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Vergi Dairesi" 
+                        value={quickAddressOrTaxOffice} 
+                        onChange={(e) => setQuickAddressOrTaxOffice(e.target.value)} 
+                        className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
+                      />
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Vergi Numarası" 
+                        value={quickExtraOrTaxNo} 
+                        onChange={(e) => setQuickExtraOrTaxNo(e.target.value)} 
+                        className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white" 
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Firma Açık Adresi" 
+                        value={quickFullAddress} 
+                        onChange={(e) => setQuickFullAddress(e.target.value)} 
+                        className="border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white flex-1" 
+                      />
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Firmayı Kaydet</button>
+                    </div>
+                  </div>
+                )}
               </form>
 
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden mt-4">
-                {companies.map((comp) => (
-                  <div key={comp.id} className="p-4 flex items-center justify-between bg-white">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{comp.name} ({comp.phone})</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Vergi Dairesi: <strong className="text-slate-700">{comp.taxOffice}</strong> | Vergi No: <strong className="text-slate-700">{comp.taxNumber}</strong>
-                      </p>
-                      {comp.address && <p className="text-xs text-slate-400 mt-0.5">📍 {comp.address}</p>}
-                    </div>
-                    <button onClick={() => handleDeleteCompany(comp.id)} className="text-rose-500 p-1" title="Sil"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                ))}
-                {companies.length === 0 && (
-                  <div className="p-6 text-center text-slate-400 text-xs">Henüz kayıtlı kurumsal firma yok.</div>
-                )}
+              {/* BİRLEŞİK LİSTE */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-sm text-slate-700">Kayıtlı Müşteri ve Firmalar ({customers.length + companies.length})</h3>
+                  <input 
+                    type="text" 
+                    placeholder="İsim veya telefon ara..." 
+                    value={customerSearchQuery} 
+                    onChange={(e) => setCustomerSearchQuery(e.target.value)} 
+                    className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs bg-slate-50 w-52" 
+                  />
+                </div>
+
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  {/* Bireysel Müşteriler */}
+                  {customers
+                    .filter(c => c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) || c.phone.includes(customerSearchQuery))
+                    .map((cust) => (
+                      <div key={cust.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-bold text-slate-800 text-sm">{cust.name} ({cust.phone})</h4>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">Bireysel</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">📍 {cust.address} <span className="font-bold text-emerald-700">({cust.addressType?.toUpperCase() || 'EV'})</span></p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button onClick={() => sendKvkkApprovalRequest(cust)} className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">KVKK Onay (WP)</button>
+                          <button onClick={() => handleDeleteCustomer(cust.id)} className="text-rose-500 p-1 hover:bg-rose-50 rounded" title="Sil"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                  ))}
+
+                  {/* Kurumsal Firmalar */}
+                  {companies
+                    .filter(c => c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) || c.phone.includes(customerSearchQuery))
+                    .map((comp) => (
+                      <div key={comp.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-bold text-slate-800 text-sm">{comp.name} ({comp.phone})</h4>
+                            <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">Kurumsal Firma</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Vergi Dairesi: <strong className="text-slate-700">{comp.taxOffice}</strong> | Vergi No: <strong className="text-slate-700">{comp.taxNumber}</strong>
+                          </p>
+                          {comp.address && <p className="text-xs text-slate-400 mt-0.5">📍 {comp.address}</p>}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button onClick={() => handleDeleteCompany(comp.id)} className="text-rose-500 p-1 hover:bg-rose-50 rounded" title="Sil"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                  ))}
+
+                  {customers.length === 0 && companies.length === 0 && (
+                    <div className="p-8 text-center text-slate-400 text-xs">Henüz kayıtlı müşteri veya firma bulunmuyor.</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1198,15 +1309,59 @@ export default function App() {
           </div>
         )}
 
-        {/* HATIRLATICILAR SEKMESİ */}
+        {/* HATIRLATICILAR SEKMESİ (180 Günü Geçenler ve Şablon Yönetimi) */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
-          <div className="space-y-6 max-w-4xl mx-auto">
+          <div className="space-y-8 max-w-4xl mx-auto">
+            {/* Şablon Düzenleme Alanları */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+                <h3 className="text-base font-bold text-slate-900">KVKK Onay Mesajı Şablonu</h3>
+                <form onSubmit={handleSaveKvkkTemplate} className="space-y-3">
+                  <textarea rows={6} value={tempKvkkInput} onChange={(e) => setTempKvkkInput(e.target.value)} className="w-full border rounded-xl p-3 text-xs font-mono bg-slate-50" />
+                  <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs shadow">KVKK Şablonunu Kaydet 💾</button>
+                </form>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+                <h3 className="text-base font-bold text-slate-900">6 Ay Periyodik Hatırlatıcı Şablonu</h3>
+                <form onSubmit={handleSaveReminderTemplate} className="space-y-3">
+                  <textarea rows={6} value={tempReminderInput} onChange={(e) => setTempReminderInput(e.target.value)} className="w-full border rounded-xl p-3 text-xs font-mono bg-slate-50" />
+                  <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs shadow">Hatırlatıcı Şablonunu Kaydet 💾</button>
+                </form>
+              </div>
+            </div>
+
+            {/* 180 Günü Geçen Müşteriler Listesi */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-950">WhatsApp KVKK & Onay Mesajı Şablonu Düzenle</h2>
-              <form onSubmit={handleSaveKvkkTemplate} className="space-y-3">
-                <textarea rows={8} value={tempKvkkInput} onChange={(e) => setTempKvkkInput(e.target.value)} className="w-full border rounded-xl p-3.5 text-xs font-mono bg-slate-50" />
-                <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-xl text-xs shadow">KVKK Şablonunu Kaydet 💾</button>
-              </form>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Periyodik Hatırlatıcı Bekleyen Müşteriler (180+ Gün)</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Son temizliğinin üzerinden 6 ay geçen veya yeni eklenen müşterilerinize tek tıkla hatırlatın.</p>
+              </div>
+
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+                {reminderEligibleCustomers.map((cust) => {
+                  const daysAgo = getDaysSinceLastJob(cust.lastJobDate);
+                  return (
+                    <div key={cust.id} className="p-4 flex items-center justify-between bg-white hover:bg-slate-50 transition">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">{cust.name} ({cust.phone})</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          📍 {cust.address} | Son İşlem: <strong className="text-purple-700">{cust.lastJobDate} ({daysAgo} gün önce)</strong>
+                        </p>
+                      </div>
+                      <button onClick={() => sendPeriodicReminder(cust)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow flex items-center space-x-1.5">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>Hatırlatma Gönder (WP)</span>
+                      </button>
+                    </div>
+                  );
+                })}
+                {reminderEligibleCustomers.length === 0 && (
+                  <div className="p-8 text-center text-slate-400 text-xs bg-white">
+                    Şu an 180 günü geçen veya hatırlatılması gereken müşteri bulunmuyor.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
