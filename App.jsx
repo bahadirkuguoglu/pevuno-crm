@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
-const SUPABASE_KEY = "sb_publishable_506jwPoEvILEUO7Xad7zEA_ywR6FixZ;
+const SUPABASE_KEY = "sb_publishable_506jwPoEvILEUO7Xad7zEA_ywR6FixZ";
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   const controller = new AbortController();
