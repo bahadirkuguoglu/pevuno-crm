@@ -90,7 +90,7 @@ const DEFAULT_APPOINTMENT_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO
 
 const DEFAULT_ON_THE_WAY_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n🚗 *PEVUNO SOLUTION* ekibimiz (*[Ekip]*) adresinize doğru yola çıkmıştır.\n📋 *İş No:* [İş No]\n📍 *Adres:* [Adres]\n\nGörüşmek üzere! 🧼✨`;
 
-const DEFAULT_COMPLETION_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO SOLUTION* profesyonel temizlik hizmetimiz tamamlanmıştır.\n📋 *İş No:* [İş No]\n👷 Ekibimiz: *[Ekip]*\n💳 *Toplam Tutar:* [Tutar] TL\n💵 *Ödeme:* [Ödeme Türü]\n\nTeşekkür ederiz! 🧼🚿`;
+const DEFAULT_COMPLETION_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO SOLUTION* profesyonel temizlik hizmetimiz tamamlanmıştır.\n📋 *İş No:* [İş No]\n👷 Ekibimiz: *[Ekip]*\n💳 *Toplam Tutar:* [Tutar] TL\n\nTeşekkür ederiz! 🧼🚿`;
 
 const DEFAULT_WORKER_ASSIGN_TEMPLATE = `Merhaba *[Personel Adı]*,\n\nYeni bir iş ataması yapılmıştır! 🧼\n📋 *İş No:* [İş No]\n👤 *Müşteri:* [Müşteri Adı] ([Telefon])\n📍 *Adres:* [Adres]\n📅 *Tarih/Saat:* [Tarih] - [Saat]\n🛠️ *Hizmetler:* [Hizmetler]\n💵 *Hakedişiniz:* [Hakediş] TL\n\nİyi çalışmalar!`;
 
@@ -125,11 +125,9 @@ export default function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Sayaçlar (4 Haneli Sıralı Rakamlar İçin)
   const [nextCustIdNum, setNextCustIdNum] = useState(() => Number(localStorage.getItem('pevuno_next_cust_id')) || 1234);
   const [nextJobIdNum, setNextJobIdNum] = useState(() => Number(localStorage.getItem('pevuno_next_job_id')) || 2345);
 
-  // Şablon State'leri
   const [kvkkTemplate, setKvkkTemplate] = useState(() => localStorage.getItem('pevuno_kvkk') || DEFAULT_KVKK_TEMPLATE);
   const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
   const [reminderTemplate, setReminderTemplate] = useState(() => localStorage.getItem('pevuno_reminder_template') || DEFAULT_REMINDER_TEMPLATE);
@@ -179,18 +177,21 @@ export default function App() {
 
   useEffect(() => {
     syncWithCloud();
-    window.addEventListener('focus', syncWithCloud);
-    return () => window.removeEventListener('focus', syncWithCloud);
+    const interval = setInterval(() => { syncWithCloud(); }, 10000);
+    const handleFocus = () => syncWithCloud();
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
   const [newNote, setNewNote] = useState('');
-  const [kvkkChecked, setKvkkChecked] = useState(false);
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
 
-  // Müşteri Ekleme Formu
   const [customerType, setCustomerType] = useState('bireysel');
   const [quickName, setQuickName] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
@@ -201,12 +202,9 @@ export default function App() {
   const [selectedItems, setSelectedItems] = useState([]);
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState(0);
-  const [paidAmount, setPaidAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('Elden');
   const [jobDate, setJobDate] = useState(new Date().toISOString().split('T')[0]);
   const [jobTime, setJobTime] = useState('10:00');
   
-  // Personel Manuel Hakediş Objeleri { workerName: string, amount: number }
   const [selectedWorkerDetails, setSelectedWorkerDetails] = useState([]);
   
   const [newWorkerUsername, setNewWorkerUsername] = useState('');
@@ -234,7 +232,6 @@ export default function App() {
   const updateNextCustId = (newVal) => commitChange('next_cust_id', newVal, setNextCustIdNum, 'pevuno_next_cust_id');
   const updateNextJobId = (newVal) => commitChange('next_job_id', newVal, setNextJobIdNum, 'pevuno_next_job_id');
 
-  // Hizmet Sıralama Fonksiyonları
   const moveService = (index, direction) => {
     const newServices = [...services];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -371,6 +368,11 @@ export default function App() {
     updateCustomers(customers.map(c => c.id === custId ? { ...c, kvkk: !c.kvkk } : c));
   };
 
+  // Hatırlatma Gönderildi İşaretleme (Mükerrer Mesajı Önlemek İçin)
+  const markReminderSent = (custId) => {
+    updateCustomers(customers.map(c => c.id === custId ? { ...c, reminderSent: true } : c));
+  };
+
   const handleAddOrUpdateService = (e) => {
     e.preventDefault();
     if (!newService.name || !newService.price) return;
@@ -416,9 +418,9 @@ export default function App() {
       discountType,
       discountValue: Number(discountValue) || 0,
       totalAmount: finalTotal,
-      paidAmount: Number(paidAmount) || 0,
-      paymentMethod,
-      isPaymentReceived: Number(paidAmount) >= finalTotal,
+      paidAmount: 0,
+      paymentDetails: [], // Parçalı ödeme tutarları için [ { method: 'IBAN', amount: 2000 }, { method: 'Elden', amount: 1000 } ]
+      isPaymentReceived: false,
       status: 'Sırada / Randevu',
       date: jobDate,
       time: jobTime,
@@ -449,7 +451,7 @@ export default function App() {
     }
     updateCustomers(updatedCusts);
 
-    setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setSelectedItems([]); setDiscountType('none'); setDiscountValue(0); setPaidAmount(0); setSelectedWorkerDetails([]);
+    setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setSelectedItems([]); setDiscountType('none'); setDiscountValue(0); setSelectedWorkerDetails([]);
     setActiveTab('jobs');
   };
 
@@ -460,45 +462,27 @@ export default function App() {
   };
 
   const updateJobStatus = (jobId, newStatus) => {
-    updateJobs(jobs.map(j => {
-      if (j.id === jobId) {
-        const isComp = isCompletedStatus(newStatus);
-        return { 
-          ...j, 
-          status: newStatus,
-          isPaymentReceived: isComp ? true : j.isPaymentReceived,
-          paidAmount: isComp ? j.totalAmount : j.paidAmount
-        };
-      }
-      return j;
-    }));
+    updateJobs(jobs.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
   };
 
-  const handleWorkerPaymentStatusToggle = (jobId, payMethod) => {
+  // Aktif İşlerde Parçalı veya Tam Ödeme Ekleme ve Tamamlama
+  const handleSaveJobPaymentAndComplete = (jobId, paymentDetailsArray, isCompleted) => {
+    const totalPaid = paymentDetailsArray.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    
     updateJobs(jobs.map(j => {
       if (j.id === jobId) {
         return {
           ...j,
-          isPaymentReceived: true,
-          paymentMethod: payMethod,
-          paidAmount: j.totalAmount
+          paymentDetails: paymentDetailsArray,
+          paidAmount: totalPaid,
+          isPaymentReceived: totalPaid > 0,
+          status: isCompleted ? 'Tamamlandı' : j.status,
+          completedByWorker: isCompleted ? true : j.completedByWorker
         };
       }
       return j;
     }));
-    alert('Ödeme alındı bilgisi güncellendi!');
-  };
-
-  const handleWorkerCompleteJob = (jobId, payMethod) => {
-    updateJobs(jobs.map(j => j.id === jobId ? { 
-      ...j, 
-      status: 'Tamamlandı', 
-      completedByWorker: true, 
-      paymentMethod: payMethod,
-      isPaymentReceived: true,
-      paidAmount: j.totalAmount 
-    } : j));
-    alert('İş tamamlandı ve ödeme kaydedildi!');
+    alert('Ödeme bilgileri ve iş durumu başarıyla kaydedildi!');
   };
 
   const handleRevertJobToActive = (jobId) => {
@@ -561,13 +545,17 @@ export default function App() {
         .replace(/\[Adres\]/g, data.address)
         .replace(/\[Ekip\]/g, assignedText);
     } else if (type === 'completion') {
+      const paySummary = data.paymentDetails && data.paymentDetails.length > 0 
+        ? data.paymentDetails.map(p => `${p.amount} TL (${p.method})`).join(', ') 
+        : `${data.paidAmount || 0} TL`;
+
       msg = completionTemplate
         .replace(/\[Müşteri Adı\]/g, data.customerName)
         .replace(/\[Müşteri No\]/g, custId)
         .replace(/\[İş No\]/g, jobId)
         .replace(/\[Ekip\]/g, assignedText)
         .replace(/\[Tutar\]/g, data.totalAmount)
-        .replace(/\[Ödeme Türü\]/g, data.paymentMethod || 'Elden');
+        .replace(/\[Ödeme Türü\]/g, paySummary);
     } else if (type === 'kvkk') {
       msg = kvkkTemplate
         .replace(/\[Müşteri Adı\]/g, data.name)
@@ -608,10 +596,9 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
-  // Ciro ve Kasa Hesaplamaları
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-11
+  const currentMonth = now.getMonth();
 
   const totalCollected = jobs.reduce((acc, j) => acc + (Number(j.paidAmount) || 0), 0);
   
@@ -641,9 +628,9 @@ export default function App() {
     return d.getFullYear() === currentYear && isCompletedStatus(j.status);
   }).reduce((acc, j) => acc + j.totalAmount, 0);
 
-  // 180 günü geçen ve SADECE KVKK ONAYLI Müşteriler
+  // 180 günü geçen, KVKK Onaylı VE henüz hatırlatılmamış müşteriler
   const reminderEligibleCustomers = customers.filter(c => {
-    if (!c.kvkk) return false; // KVKK Onayı yoksa gösterilmez!
+    if (!c.kvkk || c.reminderSent) return false; 
     const days = getDaysSinceLastJob(c.lastJobDate);
     return days !== null && days >= 180;
   });
@@ -756,7 +743,6 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {/* DASHBOARD SEKMESİ (Ciro ve Kasa Odaklı) */}
         {activeTab === 'dashboard' && currentUser.role === 'admin' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-3xl text-white shadow-lg">
@@ -770,7 +756,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Yeni Ciro İstatistik Kartları */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Bu Ay Ciro</span>
@@ -798,7 +783,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Dashboard Sıradaki Aktif İşler Paneli */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
                 <Clock className="w-5 h-5 text-emerald-600" />
@@ -823,13 +807,13 @@ export default function App() {
           </div>
         )}
 
-        {/* AKTİF İŞLER SEKMESİ */}
+        {/* AKTİF İŞLER SEKMESİ (Sahada Parçalı Ödeme ve Tamamlama Modülü Dahil) */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
               <h2 className="text-lg font-bold flex items-center space-x-2">
                 <Navigation className="w-5 h-5 text-emerald-400" />
-                <span>Aktif İşler & Rota Listesi (Kronolojik)</span>
+                <span>Aktif İşler & Saha Ödeme Operasyonu</span>
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -838,110 +822,24 @@ export default function App() {
                 const myHakedisDetail = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
 
                 return (
-                  <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                      <span className="bg-slate-900 text-emerald-400 font-extrabold text-xs px-2.5 py-1 rounded-lg">#{job.id} | SIRA: #{index + 1}</span>
-                      <select value={job.status} onChange={(e) => updateJobStatus(job.id, e.target.value)} className="text-xs font-bold px-3 py-1.5 rounded-xl border bg-slate-100 text-slate-700 cursor-pointer">
-                        <option value="Sırada / Randevu">⏳ Sırada</option>
-                        <option value="Yolda / Adreste">🚗 Yolda</option>
-                        <option value="İşlem Yapılıyor">🧼 Temizlikte</option>
-                        <option value="Tamamlandı">✅ Bitti</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <h3 className="font-extrabold text-lg text-slate-900">{job.customerName} <span className="text-xs font-normal text-slate-500">(Müşteri No: {job.customerId})</span></h3>
-                      <p className="text-slate-600 text-xs mt-1">📍 {job.address}</p>
-                      <div className="flex items-center space-x-3 text-xs text-emerald-700 font-bold mt-1.5 bg-emerald-50 p-2 rounded-xl border border-emerald-200">
-                        <span>📅 {job.date}</span>
-                        <span>⏱️ Başlangıç: {job.time || '10:00'}</span>
-                        <span>🏁 Tahmini Bitiş: {estEndTime}</span>
-                      </div>
-                    </div>
-
-                    {/* Detaylı Ürün & Hizmet Listesi */}
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
-                      <span className="font-bold text-slate-700 block border-b pb-1">İşlem Yapılacak Ürünler:</span>
-                      {job.items?.map((item, iIdx) => (
-                        <div key={iIdx} className="flex justify-between text-slate-600">
-                          <span>• {item.serviceName} x{item.qty}</span>
-                          <span className="font-semibold">{item.qty * item.unitPrice} TL</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Ödeme Durumu Göstergesi & Seçimi */}
-                    <div className="bg-slate-100 p-3 rounded-xl text-xs flex justify-between items-center">
-                      <div>
-                        <span className="text-slate-500 block">Ödeme Yöntemi & Durumu:</span>
-                        <strong className="text-slate-800">{job.paymentMethod} - {job.isPaymentReceived ? '✅ ÖDENDİ' : '⏳ BEKLİYOR'}</strong>
-                      </div>
-                      <span className="text-base font-black text-emerald-700">{job.totalAmount} TL</span>
-                    </div>
-
-                    {/* Personel Hakediş Bilgisi (Personel Ekranında) */}
-                    {currentUser.role === 'worker' && myHakedisDetail && (
-                      <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 p-2.5 rounded-xl text-xs font-bold flex justify-between items-center">
-                        <span>💵 Bu İşten Hakedişiniz:</span>
-                        <span className="text-sm font-black">{myHakedisDetail.amount} TL</span>
-                      </div>
-                    )}
-
-                    {/* Personel İçin Hızlı Ödeme Alındı & İşi Bitir Butonları */}
-                    {currentUser.role === 'worker' && (
-                      <div className="space-y-2 bg-slate-50 p-3 rounded-xl border">
-                        <p className="text-xs font-bold text-slate-700">Ödeme Alındı İşaretle / İşi Bitir:</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => handleWorkerPaymentStatusToggle(job.id, 'Elden')} className="bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg">💵 Elden Aldım</button>
-                          <button onClick={() => handleWorkerPaymentStatusToggle(job.id, 'IBAN')} className="bg-blue-600 text-white text-xs font-bold py-2 rounded-lg">🏦 IBAN'a Atıldı</button>
-                        </div>
-                        <button onClick={() => handleWorkerCompleteJob(job.id, job.paymentMethod)} className="w-full bg-slate-900 text-white text-xs font-bold py-2 rounded-lg mt-1">✅ İşi Tamamla</button>
-                      </div>
-                    )}
-
-                    {/* Yönetici Butonları & Personel WP Gönderme */}
-                    {currentUser.role === 'admin' && (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => sendWhatsAppMessage('appointment', job)} className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow">
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>Randevu WP</span>
-                          </button>
-                          <button onClick={() => sendWhatsAppMessage('ontheway', job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow">
-                            <Navigation className="w-3.5 h-3.5" />
-                            <span>Yola Çıkıldı WP</span>
-                          </button>
-                        </div>
-
-                        {/* Personel Atama Mesajı Gönder */}
-                        {job.assignedWorkers && job.assignedWorkers.length > 0 && (
-                          <div className="bg-slate-50 p-2 rounded-xl border space-y-1">
-                            <span className="text-[11px] font-bold text-slate-500 block">Personele İş Detayı Gönder (WP):</span>
-                            <div className="flex flex-wrap gap-1">
-                              {job.assignedWorkers.map((wName, wIdx) => (
-                                <button key={wIdx} onClick={() => sendWhatsAppMessage('worker_assign', job, wName)} className="bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
-                                  <Send className="w-3 h-3" />
-                                  <span>{wName}'a WP At</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button onClick={() => sendWhatsAppMessage('completion', job)} className="bg-blue-600 text-white text-xs py-2 rounded-lg font-bold">Bitti Mesajı (WP)</button>
-                      <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 border text-slate-700 text-xs py-2 rounded-lg font-bold">Servis Fişi Görseli</button>
-                    </div>
-                  </div>
+                  <JobCardItem 
+                    key={job.id} 
+                    job={job} 
+                    index={index} 
+                    estEndTime={estEndTime} 
+                    myHakedisDetail={myHakedisDetail}
+                    currentUser={currentUser}
+                    updateJobStatus={updateJobStatus}
+                    handleSaveJobPaymentAndComplete={handleSaveJobPaymentAndComplete}
+                    sendWhatsAppMessage={sendWhatsAppMessage}
+                    setSelectedJobForReceipt={setSelectedJobForReceipt}
+                  />
                 );
               })}
             </div>
           </div>
         )}
 
-        {/* TAMAMLANAN İŞLER SEKMESİ (Geri Alma İmkânıyla) */}
         {activeTab === 'admin-completed' && currentUser.role === 'admin' && (
           <div className="space-y-4">
             <div className="bg-slate-900 text-white p-4 rounded-2xl shadow">
@@ -966,10 +864,10 @@ export default function App() {
                   <div>
                     <h3 className="font-bold text-lg text-slate-900">{job.customerName}</h3>
                     <p className="text-xs text-slate-500 mt-0.5">📍 {job.address}</p>
-                    <p className="text-xs text-emerald-700 font-medium mt-1">👷 Ekip: {formatWorkerNameMasked(job.assignedWorkers)} | Ödeme: {job.paymentMethod}</p>
+                    <p className="text-xs text-emerald-700 font-medium mt-1">👷 Ekip: {formatWorkerNameMasked(job.assignedWorkers)} | Tahsil Edilen: {job.paidAmount} TL</p>
                   </div>
                   <div className="pt-2 border-t flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-700">Tutar: {job.totalAmount} TL</span>
+                    <span className="font-bold text-slate-700">Toplam Tutar: {job.totalAmount} TL</span>
                     <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg border">Servis Fişi</button>
                   </div>
                 </div>
@@ -978,7 +876,6 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI SEKMESİ (Manuel Personel Hakediş Inputu Dahil) */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1011,7 +908,6 @@ export default function App() {
                   <input type="text" required placeholder="Örn: 05321234567" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
 
-                {/* Manuel Personel Seçimi ve Hakediş Tutarı */}
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller & Manuel Hakediş Tutarları *</label>
                   <div className="border border-slate-300 rounded-xl p-3 bg-white space-y-2">
@@ -1100,13 +996,9 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input type="date" value={jobDate} onChange={(e) => setJobDate(e.target.value)} className="border rounded-xl px-3.5 py-2.5 text-sm" />
                 <input type="time" value={jobTime} onChange={(e) => setJobTime(e.target.value)} className="border rounded-xl px-3.5 py-2.5 text-sm" />
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="border rounded-xl px-3.5 py-2.5 text-sm font-bold bg-white">
-                  <option value="Elden">💵 Ödeme: Elden</option>
-                  <option value="IBAN">🏦 Ödeme: IBAN</option>
-                </select>
               </div>
 
               <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg">İş Randevusunu Oluştur ve Kaydet 🚀</button>
@@ -1114,7 +1006,6 @@ export default function App() {
           </div>
         )}
 
-        {/* MÜŞTERİLER & FİRMALAR SEKMESİ (Tek Liste, Alfabetik, Dinamik Vergi No, KVKK Togglesı) */}
         {activeTab === 'customers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
@@ -1125,7 +1016,6 @@ export default function App() {
                 </h2>
               </div>
 
-              {/* Müşteri Ekleme Formu (Dinamik Vergi Alanlarıyla) */}
               <form onSubmit={handleAddCustomer} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
@@ -1145,7 +1035,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Kurumsal Seçilirse Açılan Vergi Alanları */}
                 {customerType === 'kurumsal' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t">
                     <div>
@@ -1165,7 +1054,6 @@ export default function App() {
                 </div>
               </form>
 
-              {/* Müşteri Arama & Alfabetik Tek Liste */}
               <div className="space-y-3">
                 <input type="text" placeholder="Müşteri veya Telefon Ara..." value={customerSearchQuery} onChange={(e) => setCustomerSearchQuery(e.target.value)} className="border rounded-xl px-3.5 py-2 text-xs bg-slate-50 w-full" />
                 
@@ -1189,7 +1077,6 @@ export default function App() {
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        {/* KVKK Onay Durumu Togglesı */}
                         <button onClick={() => toggleCustomerKvkk(cust.id)} className={`px-3 py-1 rounded-lg text-xs font-bold border transition ${cust.kvkk ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                           {cust.kvkk ? '✅ KVKK Onaylı' : '❌ KVKK Onaysız'}
                         </button>
@@ -1204,7 +1091,6 @@ export default function App() {
           </div>
         )}
 
-        {/* KULLANICILAR VE ŞİFRELER SEKMESİ */}
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1234,7 +1120,6 @@ export default function App() {
           </div>
         )}
 
-        {/* FİYATLAR & SÜRELER SEKMESİ (Sıralama Değiştirme Butonlarıyla) */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1271,7 +1156,7 @@ export default function App() {
           </div>
         )}
 
-        {/* HATIRLATICILAR & TÜM ŞABLONLAR SEKMESİ (Sadece KVKK Onaylılar Düşer) */}
+        {/* HATIRLATICILAR SEKMESİ (Gönderildi Tike Basınca Listeden Kalkar) */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-8 max-w-4xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1309,7 +1194,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 180 Günü Geçen & KVKK Onaylı Müşteriler */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border space-y-4">
               <h2 className="text-xl font-bold text-slate-900">Periyodik Hatırlatıcı Bekleyen Müşteriler (180+ Gün & KVKK Onaylı)</h2>
               <div className="divide-y border rounded-xl overflow-hidden bg-slate-50">
@@ -1321,15 +1205,21 @@ export default function App() {
                         <h4 className="font-bold text-slate-900 text-sm">{cust.name} ({cust.phone}) <span className="text-xs font-mono text-purple-700">({cust.id})</span></h4>
                         <p className="text-xs text-slate-500">📍 {cust.address} | Son İşlem: <strong className="text-purple-700">{cust.lastJobDate} ({daysAgo} gün önce)</strong></p>
                       </div>
-                      <button onClick={() => sendWhatsAppMessage('reminder', cust)} className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow flex items-center space-x-1.5">
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>Hatırlatma Gönder (WP)</span>
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button onClick={() => sendWhatsAppMessage('reminder', cust)} className="bg-emerald-600 text-white font-bold px-3 py-2 rounded-xl text-xs shadow flex items-center space-x-1">
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Mesaj Gönder (WP)</span>
+                        </button>
+                        <button onClick={() => markReminderSent(cust.id)} className="bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Gönderildi ✔</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
                 {reminderEligibleCustomers.length === 0 && (
-                  <div className="p-8 text-center text-slate-400 text-xs bg-white">Şu an 180 günü geçen KVKK onaylı müşteri bulunmuyor.</div>
+                  <div className="p-8 text-center text-slate-400 text-xs bg-white">Şu an hatırlatılması gereken bekleyen müşteri bulunmuyor.</div>
                 )}
               </div>
             </div>
@@ -1337,7 +1227,6 @@ export default function App() {
         )}
       </main>
 
-      {/* SERVİS FİŞİ MODALI */}
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
@@ -1352,7 +1241,7 @@ export default function App() {
                 <p><strong>Telefon:</strong> {selectedJobForReceipt.phone}</p>
                 <p><strong>Adres:</strong> {selectedJobForReceipt.address}</p>
                 <p><strong>Tarih:</strong> {selectedJobForReceipt.date} - {selectedJobForReceipt.time}</p>
-                <p><strong>Ödeme Türü:</strong> {selectedJobForReceipt.paymentMethod}</p>
+                <p><strong>Ödeme Detayı:</strong> {selectedJobForReceipt.paymentDetails?.map(p => `${p.amount} TL (${p.method})`).join(', ') || 'Belirtilmedi'}</p>
               </div>
               <div className="border rounded-xl overflow-hidden text-xs">
                 <table className="w-full text-left divide-y">
@@ -1384,6 +1273,151 @@ export default function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Aktif İşler Kart Bileşeni (Parçalı Ödeme ve Tamamlama Yönetimi)
+function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, updateJobStatus, handleSaveJobPaymentAndComplete, sendWhatsAppMessage, setSelectedJobForReceipt }) {
+  const [payRows, setPayRows] = useState(job.paymentDetails && job.paymentDetails.length > 0 ? job.paymentDetails : [{ method: 'IBAN', amount: job.totalAmount }]);
+
+  const addPayRow = () => {
+    setPayRows([...payRows, { method: 'Elden', amount: 0 }]);
+  };
+
+  const removePayRow = (idx) => {
+    setPayRows(payRows.filter((_, i) => i !== idx));
+  };
+
+  const updatePayRow = (idx, field, val) => {
+    const updated = [...payRows];
+    updated[idx][field] = field === 'amount' ? (Number(val) || 0) : val;
+    setPayRows(updated);
+  };
+
+  const totalCollectedSoFar = payRows.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="bg-slate-900 text-emerald-400 font-extrabold text-xs px-2.5 py-1 rounded-lg">#{job.id} | SIRA: #{index + 1}</span>
+        <select value={job.status} onChange={(e) => updateJobStatus(job.id, e.target.value)} className="text-xs font-bold px-3 py-1.5 rounded-xl border bg-slate-100 text-slate-700 cursor-pointer">
+          <option value="Sırada / Randevu">⏳ Sırada</option>
+          <option value="Yolda / Adreste">🚗 Yolda</option>
+          <option value="İşlem Yapılıyor">🧼 Temizlikte</option>
+          <option value="Tamamlandı">✅ Bitti</option>
+        </select>
+      </div>
+
+      <div>
+        <h3 className="font-extrabold text-lg text-slate-900">{job.customerName} <span className="text-xs font-normal text-slate-500">(Müşteri No: {job.customerId})</span></h3>
+        <p className="text-slate-600 text-xs mt-1">📍 {job.address}</p>
+        <div className="flex items-center space-x-3 text-xs text-emerald-700 font-bold mt-1.5 bg-emerald-50 p-2 rounded-xl border border-emerald-200">
+          <span>📅 {job.date}</span>
+          <span>⏱️ Başlangıç: {job.time || '10:00'}</span>
+          <span>🏁 Tahmini Bitiş: {estEndTime}</span>
+        </div>
+      </div>
+
+      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+        <span className="font-bold text-slate-700 block border-b pb-1">İşlem Yapılacak Ürünler:</span>
+        {job.items?.map((item, iIdx) => (
+          <div key={iIdx} className="flex justify-between text-slate-600">
+            <span>• {item.serviceName} x{item.qty}</span>
+            <span className="font-semibold">{item.qty * item.unitPrice} TL</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Parçalı Ödeme Giriş Alanı */}
+      <div className="bg-slate-100 p-3 rounded-xl text-xs space-y-2 border">
+        <div className="flex justify-between items-center font-bold text-slate-700 border-b pb-1">
+          <span>Saha Ödeme Girişi (Toplam Tutar: {job.totalAmount} TL)</span>
+          <button type="button" onClick={addPayRow} className="text-emerald-700 hover:underline text-[11px]">+ Ödeme Ekle</button>
+        </div>
+        
+        {payRows.map((row, pIdx) => (
+          <div key={pIdx} className="flex items-center space-x-2">
+            <select 
+              value={row.method} 
+              onChange={(e) => updatePayRow(pIdx, 'method', e.target.value)}
+              className="border rounded-lg px-2 py-1 text-xs font-bold bg-white"
+            >
+              <option value="IBAN">🏦 IBAN</option>
+              <option value="Elden">💵 Elden</option>
+              <option value="Kredi Kartı">💳 Kredi Kartı</option>
+            </select>
+            <input 
+              type="number" 
+              placeholder="Tutar (TL)" 
+              value={row.amount || ''} 
+              onChange={(e) => updatePayRow(pIdx, 'amount', e.target.value)}
+              className="border rounded-lg px-2.5 py-1 text-xs font-bold bg-white flex-1 text-emerald-700" 
+            />
+            {payRows.length > 1 && (
+              <button type="button" onClick={() => removePayRow(pIdx)} className="text-rose-500 font-bold px-1">✕</button>
+            )}
+          </div>
+        ))}
+        
+        <div className="flex justify-between pt-1 font-semibold text-slate-600">
+          <span>Girilen Toplam: {totalCollectedSoFar} TL</span>
+          <span className={totalCollectedSoFar >= job.totalAmount ? 'text-emerald-600 font-bold' : 'text-amber-600'}>
+            {totalCollectedSoFar >= job.totalAmount ? '✅ Tamamı Alındı' : `Eksik: ${job.totalAmount - totalCollectedSoFar} TL`}
+          </span>
+        </div>
+      </div>
+
+      {currentUser.role === 'worker' && myHakedisDetail && (
+        <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 p-2.5 rounded-xl text-xs font-bold flex justify-between items-center">
+          <span>💵 Bu İşten Hakedişiniz:</span>
+          <span className="text-sm font-black">{myHakedisDetail.amount} TL</span>
+        </div>
+      )}
+
+      {/* Kaydet & İşi Bitir Butonları */}
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <button onClick={() => handleSaveJobPaymentAndComplete(job.id, payRows, false)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 rounded-xl shadow">
+          💾 Ödemeyi Kaydet
+        </button>
+        <button onClick={() => handleSaveJobPaymentAndComplete(job.id, payRows, true)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow">
+          ✅ İşi Bitir & Arşivle
+        </button>
+      </div>
+
+      {currentUser.role === 'admin' && (
+        <div className="space-y-2 pt-1 border-t">
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => sendWhatsAppMessage('appointment', job)} className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Randevu WP</span>
+            </button>
+            <button onClick={() => sendWhatsAppMessage('ontheway', job)} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs py-2 px-2 rounded-xl flex items-center justify-center space-x-1 shadow">
+              <Navigation className="w-3.5 h-3.5" />
+              <span>Yola Çıkıldı WP</span>
+            </button>
+          </div>
+
+          {job.assignedWorkers && job.assignedWorkers.length > 0 && (
+            <div className="bg-slate-50 p-2 rounded-xl border space-y-1">
+              <span className="text-[11px] font-bold text-slate-500 block">Personele İş Detayı Gönder (WP):</span>
+              <div className="flex flex-wrap gap-1">
+                {job.assignedWorkers.map((wName, wIdx) => (
+                  <button key={wIdx} onClick={() => sendWhatsAppMessage('worker_assign', job, wName)} className="bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
+                    <Send className="w-3 h-3" />
+                    <span>{wName}'a WP At</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <button onClick={() => sendWhatsAppMessage('completion', job)} className="bg-blue-600 text-white text-xs py-2 rounded-lg font-bold">Bitti Mesajı (WP)</button>
+        <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 border text-slate-700 text-xs py-2 rounded-lg font-bold">Servis Fişi Görseli</button>
+      </div>
     </div>
   );
 }
