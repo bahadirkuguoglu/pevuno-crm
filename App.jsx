@@ -110,16 +110,19 @@ export default function App() {
     const saved = localStorage.getItem('pevuno_services');
     return saved ? JSON.parse(saved) : DEFAULT_SERVICES;
   });
+
   const [workers, setWorkers] = useState(() => {
     const saved = localStorage.getItem('pevuno_workers');
     return saved ? JSON.parse(saved) : [
-      { id: 'admin-1', username: 'bahadir', name: 'Bahadır', pin: '1453', role: 'admin', phone: '' }
+      { id: 'admin-1', username: 'bahadirkuguoglu', name: 'Bahadır Kuğuoğlu', pin: '1201', role: 'admin', phone: '5384007070' }
     ];
   });
+
   const [jobs, setJobs] = useState(() => {
     const saved = localStorage.getItem('pevuno_jobs');
     return saved ? JSON.parse(saved) : [];
   });
+
   const [customers, setCustomers] = useState(() => {
     const saved = localStorage.getItem('pevuno_customers');
     return saved ? JSON.parse(saved) : [];
@@ -127,7 +130,6 @@ export default function App() {
 
   const [nextCustIdNum, setNextCustIdNum] = useState(() => Number(localStorage.getItem('pevuno_next_cust_id')) || 1234);
   const [nextJobIdNum, setNextJobIdNum] = useState(() => Number(localStorage.getItem('pevuno_next_job_id')) || 2345);
-
   const [kvkkTemplate, setKvkkTemplate] = useState(() => localStorage.getItem('pevuno_kvkk') || DEFAULT_KVKK_TEMPLATE);
   const [tempKvkkInput, setTempKvkkInput] = useState(kvkkTemplate);
   const [reminderTemplate, setReminderTemplate] = useState(() => localStorage.getItem('pevuno_reminder_template') || DEFAULT_REMINDER_TEMPLATE);
@@ -139,7 +141,6 @@ export default function App() {
   const [completionTemplate, setCompletionTemplate] = useState(() => localStorage.getItem('pevuno_completion_template') || DEFAULT_COMPLETION_TEMPLATE);
   const [tempCompletionInput, setTempCompletionInput] = useState(completionTemplate);
   const [workerAssignTemplate, setWorkerAssignTemplate] = useState(() => localStorage.getItem('pevuno_assign_template') || DEFAULT_WORKER_ASSIGN_TEMPLATE);
-
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
 
   const syncWithCloud = async () => {
@@ -147,8 +148,22 @@ export default function App() {
     try {
       const cloudServices = await fetchSupabaseData('services', null);
       if (cloudServices && Array.isArray(cloudServices)) { setServices(cloudServices); localStorage.setItem('pevuno_services', JSON.stringify(cloudServices)); }
+      
       const cloudWorkers = await fetchSupabaseData('workers', null);
-      if (cloudWorkers && Array.isArray(cloudWorkers)) { setWorkers(cloudWorkers); localStorage.setItem('pevuno_workers', JSON.stringify(cloudWorkers)); }
+      if (cloudWorkers && Array.isArray(cloudWorkers)) { 
+        setWorkers(prevWorkers => {
+          const merged = [...cloudWorkers];
+          // Yerel olarak eklenmiş kullanıcıların kaybolmasını önleyen akıllı birleştirme
+          prevWorkers.forEach(pw => {
+            if (!merged.some(mw => mw.username?.toLowerCase() === pw.username?.toLowerCase())) {
+              merged.push(pw);
+            }
+          });
+          localStorage.setItem('pevuno_workers', JSON.stringify(merged));
+          return merged;
+        });
+      }
+
       const cloudJobs = await fetchSupabaseData('jobs', null);
       if (cloudJobs && Array.isArray(cloudJobs)) { setJobs(cloudJobs); localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs)); }
       const cloudCustomers = await fetchSupabaseData('customers', null);
@@ -158,7 +173,6 @@ export default function App() {
       if (cloudCustId) { setNextCustIdNum(cloudCustId); localStorage.setItem('pevuno_next_cust_id', cloudCustId); }
       const cloudJobId = await fetchSupabaseData('next_job_id', null);
       if (cloudJobId) { setNextJobIdNum(cloudJobId); localStorage.setItem('pevuno_next_job_id', cloudJobId); }
-
       const cloudKvkk = await fetchSupabaseData('kvkk_template', null);
       if (cloudKvkk) { setKvkkTemplate(cloudKvkk); setTempKvkkInput(cloudKvkk); localStorage.setItem('pevuno_kvkk', cloudKvkk); }
       const cloudRem = await fetchSupabaseData('reminder_template', null);
@@ -191,14 +205,12 @@ export default function App() {
   const [newAddress, setNewAddress] = useState('');
   const [newNote, setNewNote] = useState('');
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
-
   const [customerType, setCustomerType] = useState('bireysel');
   const [quickName, setQuickName] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
   const [quickAddress, setQuickAddress] = useState('');
   const [quickTaxOffice, setQuickTaxOffice] = useState('');
   const [quickTaxNumber, setQuickTaxNumber] = useState('');
-
   const [selectedItems, setSelectedItems] = useState([]);
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState(0);
@@ -228,7 +240,6 @@ export default function App() {
   const updateWorkers = (newWork) => commitChange('workers', newWork, setWorkers, 'pevuno_workers');
   const updateJobs = (newJbs) => commitChange('jobs', newJbs, setJobs, 'pevuno_jobs');
   const updateCustomers = (newCust) => commitChange('customers', newCust, setCustomers, 'pevuno_customers');
-  
   const updateNextCustId = (newVal) => commitChange('next_cust_id', newVal, setNextCustIdNum, 'pevuno_next_cust_id');
   const updateNextJobId = (newVal) => commitChange('next_job_id', newVal, setNextJobIdNum, 'pevuno_next_job_id');
 
@@ -284,23 +295,34 @@ export default function App() {
 
   const subtotal = selectedItems.reduce((acc, item) => acc + (item.qty * item.unitPrice), 0);
   const totalDuration = selectedItems.reduce((acc, item) => acc + (item.qty * (item.durationMinutes || 30)), 0);
-
+  
   const calculateDiscount = () => {
     if (discountType === 'amount') return Number(discountValue) || 0;
     if (discountType === 'percent') return (subtotal * (Number(discountValue) || 0)) / 100;
     return 0;
   };
+  
   const calculatedDiscount = calculateDiscount();
   const finalTotal = Math.max(0, subtotal - calculatedDiscount);
 
+  // GİRİŞ MİMARİSİ (Kesin Eşleşme ve Bahadır Kuğuoğlu Garantisi)
   const handleLogin = (e) => {
     e.preventDefault();
     const inputUser = loginUsername.trim().toLowerCase();
     const inputPass = loginPassword.trim();
+
+    // Kesin arka kapı kilidi (Her koşulda ilk yönetici hesabı anında girer)
+    if ((inputUser === 'bahadirkuguoglu' || inputUser === 'bahadır kuğuoğlu' || inputUser === 'bahadir') && inputPass === '1201') {
+      setCurrentUser({ role: 'admin', name: 'Bahadır Kuğuoğlu', username: 'bahadirkuguoglu' });
+      setActiveTab('dashboard');
+      return;
+    }
+
     const matchedUser = workers.find(w => 
       (w.username && w.username.trim().toLowerCase() === inputUser) ||
       (w.name && w.name.trim().toLowerCase() === inputUser)
     );
+
     if (matchedUser && matchedUser.pin === inputPass) {
       const cleanName = matchedUser.name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
       setCurrentUser({ role: matchedUser.role || 'worker', name: cleanName, username: matchedUser.username });
@@ -341,7 +363,6 @@ export default function App() {
     
     const assignedId = `CUST-${nextCustIdNum}`;
     updateNextCustId(nextCustIdNum + 1);
-
     const newCustObj = {
       id: assignedId,
       name: quickName,
@@ -368,7 +389,6 @@ export default function App() {
     updateCustomers(customers.map(c => c.id === custId ? { ...c, kvkk: !c.kvkk } : c));
   };
 
-  // Hatırlatma Gönderildi İşaretleme (Mükerrer Mesajı Önlemek İçin)
   const markReminderSent = (custId) => {
     updateCustomers(customers.map(c => c.id === custId ? { ...c, reminderSent: true } : c));
   };
@@ -392,19 +412,15 @@ export default function App() {
       alert('Lütfen müşteri adı, telefon, adres ve en az 1 hizmet seçiniz.');
       return;
     }
-
     const matchedCust = customers.find(c => c.phone === newCustomerPhone);
     let customerId = matchedCust ? matchedCust.id : `CUST-${nextCustIdNum}`;
     if (!matchedCust) {
       updateNextCustId(nextCustIdNum + 1);
     }
-
     const assignedJobId = `JOB-${nextJobIdNum}`;
     updateNextJobId(nextJobIdNum + 1);
-
     const workerNames = selectedWorkerDetails.map(w => w.workerName);
     const totalWorkerHakedis = selectedWorkerDetails.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
-
     const newJobObj = {
       id: assignedJobId,
       customerId,
@@ -419,7 +435,7 @@ export default function App() {
       discountValue: Number(discountValue) || 0,
       totalAmount: finalTotal,
       paidAmount: 0,
-      paymentDetails: [], // Parçalı ödeme tutarları için [ { method: 'IBAN', amount: 2000 }, { method: 'Elden', amount: 1000 } ]
+      paymentDetails: [],
       isPaymentReceived: false,
       status: 'Sırada / Randevu',
       date: jobDate,
@@ -429,9 +445,7 @@ export default function App() {
       totalWorkerHakedis: totalWorkerHakedis,
       completedByWorker: false
     };
-
     updateJobs([newJobObj, ...jobs]);
-
     const existingCustIndex = customers.findIndex(c => c.phone === newCustomerPhone);
     let updatedCusts = [...customers];
     if (existingCustIndex > -1) {
@@ -450,7 +464,6 @@ export default function App() {
       });
     }
     updateCustomers(updatedCusts);
-
     setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setSelectedItems([]); setDiscountType('none'); setDiscountValue(0); setSelectedWorkerDetails([]);
     setActiveTab('jobs');
   };
@@ -465,10 +478,8 @@ export default function App() {
     updateJobs(jobs.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
   };
 
-  // Aktif İşlerde Parçalı veya Tam Ödeme Ekleme ve Tamamlama
   const handleSaveJobPaymentAndComplete = (jobId, paymentDetailsArray, isCompleted) => {
     const totalPaid = paymentDetailsArray.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    
     updateJobs(jobs.map(j => {
       if (j.id === jobId) {
         return {
@@ -526,7 +537,6 @@ export default function App() {
     const assignedText = formatWorkerNameMasked(data.assignedWorkers || ['Ekip']);
     const custId = data.customerId || 'CUST-0000';
     const jobId = data.id || 'JOB-0000';
-
     if (type === 'appointment') {
       msg = appointmentTemplate
         .replace(/\[Müşteri Adı\]/g, data.customerName)
@@ -548,7 +558,6 @@ export default function App() {
       const paySummary = data.paymentDetails && data.paymentDetails.length > 0 
         ? data.paymentDetails.map(p => `${p.amount} TL (${p.method})`).join(', ') 
         : `${data.paidAmount || 0} TL`;
-
       msg = completionTemplate
         .replace(/\[Müşteri Adı\]/g, data.customerName)
         .replace(/\[Müşteri No\]/g, custId)
@@ -579,7 +588,6 @@ export default function App() {
         .replace(/\[Saat\]/g, data.time || '10:00')
         .replace(/\[Hizmetler\]/g, itemsText)
         .replace(/\[Hakediş\]/g, hakedisVal);
-
       const targetWorkerObj = workers.find(w => w.name === targetWorkerName);
       const workerPhone = targetWorkerObj?.phone || '';
       const cleanPhone = workerPhone.replace(/\D/g, '');
@@ -589,7 +597,6 @@ export default function App() {
         return;
       }
     }
-
     const encoded = encodeURIComponent(msg);
     const cleanPhone = (data.phone || '').replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
@@ -599,16 +606,14 @@ export default function App() {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
-
   const totalCollected = jobs.reduce((acc, j) => acc + (Number(j.paidAmount) || 0), 0);
   
   const totalWorkerHakedisSum = jobs.reduce((acc, j) => {
     if (j.totalWorkerHakedis !== undefined) return acc + Number(j.totalWorkerHakedis);
     return acc + (j.workerHakedis || (j.totalAmount * 0.80));
   }, 0);
-
   const netProfit = totalCollected - totalWorkerHakedisSum;
-
+  
   const thisMonthCiro = jobs.filter(j => {
     if (!j.date) return false;
     const d = new Date(j.date);
@@ -628,7 +633,6 @@ export default function App() {
     return d.getFullYear() === currentYear && isCompletedStatus(j.status);
   }).reduce((acc, j) => acc + j.totalAmount, 0);
 
-  // 180 günü geçen, KVKK Onaylı VE henüz hatırlatılmamış müşteriler
   const reminderEligibleCustomers = customers.filter(c => {
     if (!c.kvkk || c.reminderSent) return false; 
     const days = getDaysSinceLastJob(c.lastJobDate);
@@ -636,7 +640,6 @@ export default function App() {
   });
 
   const sortedCustomersAlphabetical = [...customers].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
-
   const sortedJobsForUser = [...jobs]
     .filter(j => currentUser?.role === 'admin' || j.assignedWorkers?.includes(currentUser?.name))
     .sort((a, b) => new Date(`${a.date}T${a.time || '10:00'}`) - new Date(`${b.date}T${b.time || '10:00'}`));
@@ -657,7 +660,7 @@ export default function App() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Kullanıcı Adı</label>
-              <input type="text" required placeholder="Örn: bahadir" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50" />
+              <input type="text" required placeholder="Örn: bahadirkuguoglu" value={loginUsername} onChange={(e) => setLoginUsername(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Şifre</label>
@@ -741,7 +744,6 @@ export default function App() {
           </div>
         </div>
       </header>
-
       <main className="max-w-6xl mx-auto px-4 py-6">
         {activeTab === 'dashboard' && currentUser.role === 'admin' && (
           <div className="space-y-6">
@@ -755,7 +757,6 @@ export default function App() {
                 <span>Hızlı İş Kaydı</span>
               </button>
             </div>
-
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Bu Ay Ciro</span>
@@ -782,14 +783,13 @@ export default function App() {
                 <div className={`text-lg font-black ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{netProfit} TL</div>
               </div>
             </div>
-
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
                 <Clock className="w-5 h-5 text-emerald-600" />
                 <span>Sıradaki Aktive Edilmiş İşler ({activeJobsList.length})</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {activeJobsList.slice(0, 4).map((job, idx) => (
+                {activeJobsList.slice(0, 4).map((job) => (
                   <div key={job.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
                     <div className="flex justify-between font-bold text-slate-900">
                       <span>#{job.id} - {job.customerName}</span>
@@ -806,8 +806,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* AKTİF İŞLER SEKMESİ (Sahada Parçalı Ödeme ve Tamamlama Modülü Dahil) */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
@@ -820,7 +818,6 @@ export default function App() {
               {sortedJobsForUser.filter(job => !isCompletedStatus(job.status)).map((job, index) => {
                 const estEndTime = calculateEstimatedEndTime(job.time, job.estimatedDurationMinutes);
                 const myHakedisDetail = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
-
                 return (
                   <JobCardItem 
                     key={job.id} 
@@ -839,7 +836,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {activeTab === 'admin-completed' && currentUser.role === 'admin' && (
           <div className="space-y-4">
             <div className="bg-slate-900 text-white p-4 rounded-2xl shadow">
@@ -875,7 +871,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -907,14 +902,12 @@ export default function App() {
                   <label className="block text-xs font-bold text-slate-600 mb-1">Telefon Numarası *</label>
                   <input type="text" required placeholder="Örn: 05321234567" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
-
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller & Manuel Hakediş Tutarları *</label>
                   <div className="border border-slate-300 rounded-xl p-3 bg-white space-y-2">
                     {workers.map(w => {
                       const isSelected = selectedWorkerDetails.some(item => item.workerName === w.name);
                       const currentDetail = selectedWorkerDetails.find(item => item.workerName === w.name);
-
                       return (
                         <div key={w.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border">
                           <label className="flex items-center space-x-2 text-xs font-bold text-slate-800 cursor-pointer">
@@ -932,7 +925,6 @@ export default function App() {
                             />
                             <span>{w.name} ({w.role === 'admin' ? 'Yönetici' : 'Saha'})</span>
                           </label>
-
                           {isSelected && (
                             <div className="flex items-center space-x-1">
                               <span className="text-xs font-bold text-slate-500">Hakediş (TL):</span>
@@ -953,13 +945,11 @@ export default function App() {
                     })}
                   </div>
                 </div>
-
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-slate-600 mb-1">Açık Adres *</label>
                   <textarea rows={2} required placeholder="İlçe, Mahalle, Cadde..." value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
               </div>
-
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <label className="block text-xs font-bold text-slate-700 uppercase">Hizmet Kataloğu & Dakika Seçimi</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -995,17 +985,14 @@ export default function App() {
                   </div>
                 )}
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input type="date" value={jobDate} onChange={(e) => setJobDate(e.target.value)} className="border rounded-xl px-3.5 py-2.5 text-sm" />
                 <input type="time" value={jobTime} onChange={(e) => setJobTime(e.target.value)} className="border rounded-xl px-3.5 py-2.5 text-sm" />
               </div>
-
               <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg">İş Randevusunu Oluştur ve Kaydet 🚀</button>
             </form>
           </div>
         )}
-
         {activeTab === 'customers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
@@ -1015,7 +1002,6 @@ export default function App() {
                   <span>Müşteri & Kurumsal Firma Yönetimi</span>
                 </h2>
               </div>
-
               <form onSubmit={handleAddCustomer} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
@@ -1034,7 +1020,6 @@ export default function App() {
                     <input type="text" required placeholder="0532..." value={quickPhone} onChange={(e) => setQuickPhone(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white" />
                   </div>
                 </div>
-
                 {customerType === 'kurumsal' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t">
                     <div>
@@ -1047,16 +1032,13 @@ export default function App() {
                     </div>
                   </div>
                 )}
-
                 <div className="flex gap-2">
                   <input type="text" placeholder="Açık Adres" value={quickAddress} onChange={(e) => setQuickAddress(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white flex-1" />
                   <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Müşteriyi Kaydet</button>
                 </div>
               </form>
-
               <div className="space-y-3">
                 <input type="text" placeholder="Müşteri veya Telefon Ara..." value={customerSearchQuery} onChange={(e) => setCustomerSearchQuery(e.target.value)} className="border rounded-xl px-3.5 py-2 text-xs bg-slate-50 w-full" />
-                
                 <div className="divide-y divide-slate-100 border rounded-xl overflow-hidden bg-white">
                   {sortedCustomersAlphabetical.filter(c => c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) || c.phone.includes(customerSearchQuery)).map((cust) => (
                     <div key={cust.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
@@ -1075,7 +1057,6 @@ export default function App() {
                           <p className="text-[11px] text-blue-700 font-semibold mt-0.5">V.D: {cust.taxOffice || '-'} | V.N: {cust.taxNumber || '-'}</p>
                         )}
                       </div>
-
                       <div className="flex items-center space-x-2">
                         <button onClick={() => toggleCustomerKvkk(cust.id)} className={`px-3 py-1 rounded-lg text-xs font-bold border transition ${cust.kvkk ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                           {cust.kvkk ? '✅ KVKK Onaylı' : '❌ KVKK Onaysız'}
@@ -1090,7 +1071,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1119,7 +1099,6 @@ export default function App() {
             </div>
           </div>
         )}
-
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1130,7 +1109,6 @@ export default function App() {
                 <input type="number" required placeholder="Süre (Dakika)" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} className="border rounded-xl px-3 py-2 text-sm bg-white" />
                 <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow">{editingServiceId ? 'Güncelle' : 'Ekle'}</button>
               </form>
-
               <div className="divide-y border rounded-xl overflow-hidden">
                 {services.map((srv, index) => (
                   <div key={srv.id} className="p-4 flex items-center justify-between bg-white">
@@ -1155,8 +1133,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* HATIRLATICILAR SEKMESİ (Gönderildi Tike Basınca Listeden Kalkar) */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-8 max-w-4xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1167,7 +1143,6 @@ export default function App() {
                   <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2 rounded-xl text-xs shadow">KVKK Şablonunu Kaydet</button>
                 </form>
               </div>
-
               <div className="bg-white rounded-2xl p-6 shadow-sm border space-y-3">
                 <h3 className="text-sm font-bold text-slate-900">6 Ay Periyodik Hatırlatıcı Şablonu</h3>
                 <form onSubmit={(e) => handleSaveTemplates(e, 'reminder')} className="space-y-2">
@@ -1175,7 +1150,6 @@ export default function App() {
                   <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded-xl text-xs shadow">Hatırlatıcı Şablonunu Kaydet</button>
                 </form>
               </div>
-
               <div className="bg-white rounded-2xl p-6 shadow-sm border space-y-3">
                 <h3 className="text-sm font-bold text-slate-900">Randevu Onay Mesajı Şablonu</h3>
                 <form onSubmit={(e) => handleSaveTemplates(e, 'appointment')} className="space-y-2">
@@ -1183,7 +1157,6 @@ export default function App() {
                   <button type="submit" className="w-full bg-purple-600 text-white font-bold py-2 rounded-xl text-xs shadow">Randevu Şablonunu Kaydet</button>
                 </form>
               </div>
-
               <div className="bg-white rounded-2xl p-6 shadow-sm border space-y-3">
                 <h3 className="text-sm font-bold text-slate-900">Yola Çıkıldı / Servis Bitti Şablonları</h3>
                 <form onSubmit={(e) => handleSaveTemplates(e, 'ontheway')} className="space-y-2">
@@ -1193,7 +1166,6 @@ export default function App() {
                 </form>
               </div>
             </div>
-
             <div className="bg-white rounded-2xl p-6 shadow-sm border space-y-4">
               <h2 className="text-xl font-bold text-slate-900">Periyodik Hatırlatıcı Bekleyen Müşteriler (180+ Gün & KVKK Onaylı)</h2>
               <div className="divide-y border rounded-xl overflow-hidden bg-slate-50">
@@ -1226,7 +1198,6 @@ export default function App() {
           </div>
         )}
       </main>
-
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
@@ -1277,24 +1248,23 @@ export default function App() {
   );
 }
 
-// Aktif İşler Kart Bileşeni (Parçalı Ödeme ve Tamamlama Yönetimi)
 function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, updateJobStatus, handleSaveJobPaymentAndComplete, sendWhatsAppMessage, setSelectedJobForReceipt }) {
   const [payRows, setPayRows] = useState(job.paymentDetails && job.paymentDetails.length > 0 ? job.paymentDetails : [{ method: 'IBAN', amount: job.totalAmount }]);
-
+  
   const addPayRow = () => {
     setPayRows([...payRows, { method: 'Elden', amount: 0 }]);
   };
-
+  
   const removePayRow = (idx) => {
     setPayRows(payRows.filter((_, i) => i !== idx));
   };
-
+  
   const updatePayRow = (idx, field, val) => {
     const updated = [...payRows];
     updated[idx][field] = field === 'amount' ? (Number(val) || 0) : val;
     setPayRows(updated);
   };
-
+  
   const totalCollectedSoFar = payRows.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   return (
@@ -1308,7 +1278,6 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
           <option value="Tamamlandı">✅ Bitti</option>
         </select>
       </div>
-
       <div>
         <h3 className="font-extrabold text-lg text-slate-900">{job.customerName} <span className="text-xs font-normal text-slate-500">(Müşteri No: {job.customerId})</span></h3>
         <p className="text-slate-600 text-xs mt-1">📍 {job.address}</p>
@@ -1318,7 +1287,6 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
           <span>🏁 Tahmini Bitiş: {estEndTime}</span>
         </div>
       </div>
-
       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
         <span className="font-bold text-slate-700 block border-b pb-1">İşlem Yapılacak Ürünler:</span>
         {job.items?.map((item, iIdx) => (
@@ -1328,14 +1296,11 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
           </div>
         ))}
       </div>
-
-      {/* Parçalı Ödeme Giriş Alanı */}
       <div className="bg-slate-100 p-3 rounded-xl text-xs space-y-2 border">
         <div className="flex justify-between items-center font-bold text-slate-700 border-b pb-1">
           <span>Saha Ödeme Girişi (Toplam Tutar: {job.totalAmount} TL)</span>
           <button type="button" onClick={addPayRow} className="text-emerald-700 hover:underline text-[11px]">+ Ödeme Ekle</button>
         </div>
-        
         {payRows.map((row, pIdx) => (
           <div key={pIdx} className="flex items-center space-x-2">
             <select 
@@ -1359,7 +1324,6 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
             )}
           </div>
         ))}
-        
         <div className="flex justify-between pt-1 font-semibold text-slate-600">
           <span>Girilen Toplam: {totalCollectedSoFar} TL</span>
           <span className={totalCollectedSoFar >= job.totalAmount ? 'text-emerald-600 font-bold' : 'text-amber-600'}>
@@ -1367,15 +1331,12 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
           </span>
         </div>
       </div>
-
       {currentUser.role === 'worker' && myHakedisDetail && (
         <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 p-2.5 rounded-xl text-xs font-bold flex justify-between items-center">
           <span>💵 Bu İşten Hakedişiniz:</span>
           <span className="text-sm font-black">{myHakedisDetail.amount} TL</span>
         </div>
       )}
-
-      {/* Kaydet & İşi Bitir Butonları */}
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button onClick={() => handleSaveJobPaymentAndComplete(job.id, payRows, false)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2.5 rounded-xl shadow">
           💾 Ödemeyi Kaydet
@@ -1384,7 +1345,6 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
           ✅ İşi Bitir & Arşivle
         </button>
       </div>
-
       {currentUser.role === 'admin' && (
         <div className="space-y-2 pt-1 border-t">
           <div className="grid grid-cols-2 gap-2">
@@ -1397,7 +1357,6 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
               <span>Yola Çıkıldı WP</span>
             </button>
           </div>
-
           {job.assignedWorkers && job.assignedWorkers.length > 0 && (
             <div className="bg-slate-50 p-2 rounded-xl border space-y-1">
               <span className="text-[11px] font-bold text-slate-500 block">Personele İş Detayı Gönder (WP):</span>
@@ -1413,7 +1372,6 @@ function JobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, upd
           )}
         </div>
       )}
-
       <div className="grid grid-cols-2 gap-2 pt-1">
         <button onClick={() => sendWhatsAppMessage('completion', job)} className="bg-blue-600 text-white text-xs py-2 rounded-lg font-bold">Bitti Mesajı (WP)</button>
         <button onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 border text-slate-700 text-xs py-2 rounded-lg font-bold">Servis Fişi Görseli</button>
