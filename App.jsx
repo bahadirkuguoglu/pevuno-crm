@@ -140,7 +140,7 @@ export default function App() {
   const [workers, setWorkers] = useState(() => {
     const saved = localStorage.getItem('pevuno_workers');
     return saved ? JSON.parse(saved) : [
-      { id: 'admin-1', username: 'bahadirkuguoglu', name: 'Bahadır Kuğuoğlu', pin: '1201', role: 'admin', phone: '5384007070' }
+      { id: 'admin-1', username: 'bahadirkuguoglu', name: 'Bahadır Kuğuoğlu', pin: '1201', role: 'admin', phone: '5402281201' }
     ];
   });
   const [jobs, setJobs] = useState(() => {
@@ -557,17 +557,9 @@ export default function App() {
 
   const downloadReceiptAsImage = () => {
     if (!receiptRef.current) return;
-    if (!window.html2canvas) {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      script.onload = () => captureAndDownload();
-      document.body.appendChild(script);
-    } else {
-      captureAndDownload();
-    }
-
-    function captureAndDownload() {
-      window.html2canvas(receiptRef.current, { scale: 2, useCORS: true }).then(canvas => {
+    
+    const executeCapture = () => {
+      window.html2canvas(receiptRef.current, { scale: 2, useCORS: true, logging: false }).then(canvas => {
         const image = canvas.toDataURL('image/jpeg', 0.95);
         const link = document.createElement('a');
         link.href = image;
@@ -576,9 +568,18 @@ export default function App() {
         link.click();
         document.body.removeChild(link);
       }).catch(err => {
-        console.error("html2canvas hatası:", err);
-        alert("Fiş indirilirken bir hata oluştu.");
+        console.error("html2canvas indirirken hata oluştu:", err);
+        alert("Görsel indirme hatası. Lütfen sayfayı yenileyip tekrar deneyiniz.");
       });
+    };
+
+    if (!window.html2canvas) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      script.onload = () => executeCapture();
+      document.body.appendChild(script);
+    } else {
+      executeCapture();
     }
   };
 
@@ -703,7 +704,7 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
-  // MÜŞTERİ PANELİ EKRANI (SEÇİM ÖZETLİ)
+  // MÜŞTERİ PANELİ EKRANI (SEÇİM ÖZETLİ & BANNER GÖRSELLİ)
   if (showPortalDirectly || activeTab === 'client-portal') {
     const groupedServices = services.reduce((acc, srv) => {
       const cat = srv.category || 'Genel Alanlar';
@@ -727,6 +728,14 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
         <div className="max-w-2xl mx-auto space-y-6 bg-white p-6 sm:p-8 rounded-3xl shadow-xl border">
+          
+          {/* BANNER GÖRSELİ */}
+          {portalBannerUrl && (
+            <div className="w-full overflow-hidden rounded-2xl shadow-sm border border-slate-200">
+              <img src={portalBannerUrl} alt="Pevuno Banner" className="w-full h-auto object-cover max-h-56" />
+            </div>
+          )}
+
           <div className="text-center space-y-2 border-b pb-4">
             <h2 className="text-2xl font-black text-slate-900 tracking-wider">PEVUNO SOLUTION</h2>
             <p className="text-xs text-slate-500 font-medium">Hızlı Fiyat Hesaplama & Canlı Teklif Ekranı</p>
@@ -831,7 +840,7 @@ export default function App() {
                 const srv = services.find(s => s.id === sId);
                 return `${srv?.name} x${qty}`;
               }).join(', ');
-              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~{calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~${calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
               window.open(`https://wa.me/${CORPORATE_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
@@ -1329,7 +1338,7 @@ export default function App() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-500 mb-1">Vergi Numarası</label>
-                      <input type="text" placeholder="Örn: 1234567890" value={quickTaxNumber} onChange={(e) => setQuickTaxNumber(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white" alt="" />
+                      <input type="text" placeholder="Örn: 1234567890" value={quickTaxNumber} onChange={(e) => setQuickTaxNumber(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white" />
                     </div>
                   </div>
                 )}
@@ -1610,7 +1619,7 @@ export default function App() {
         )}
       </main>
 
-      {/* SERVİS FİŞİ MODALI (DÜZELTİLMİŞ JPEG İNDİRME) */}
+      {/* SERVİS FİŞİ MODALI */}
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
