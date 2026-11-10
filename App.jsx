@@ -68,13 +68,9 @@ async function saveSupabaseData(key, value) {
 }
 
 const DEFAULT_SERVICES = [
-  { id: '1', category: 'Çocuk Odası', name: 'Tek Kişilik Yatak Yıkama', price: 900, unit: 'adet', durationMinutes: 40 },
-  { id: '2', category: 'Çocuk Odası', name: 'Çocuk Koltuğu / Sandalye', price: 150, unit: 'adet', durationMinutes: 15 },
-  { id: '3', category: 'Salon', name: 'Koltuk Takımı (3+3+1+1)', price: 2400, unit: 'takım', durationMinutes: 90 },
-  { id: '4', category: 'Salon', name: 'L Koltuk Yıkama', price: 1500, unit: 'adet', durationMinutes: 60 },
-  { id: '5', category: 'Yatak Odası', name: 'Çift Kişilik Yatak Yıkama', price: 1200, unit: 'adet', durationMinutes: 50 },
-  { id: '6', category: 'Genel Alanlar', name: 'Halı Yıkama', price: 120, unit: 'm²', durationMinutes: 30 },
-  { id: '7', category: 'Genel Alanlar', name: 'Stor Perde Yıkama', price: 150, unit: 'm²', durationMinutes: 20 },
+  { id: '1', category: 'Çocuk Yatak Odası', name: 'Essential | Tek Kişilik Yatak Yıkama', price: 750, unit: 'adet', durationMinutes: 40 },
+  { id: '2', category: 'Genel Alanlar', name: 'Comfort | Tek Kişilik Yatak Yıkama', price: 1000, unit: 'adet', durationMinutes: 40 },
+  { id: '3', category: 'Genel Alanlar', name: 'Premium | Tek Kişilik Yatak Yıkama', price: 1250, unit: 'adet', durationMinutes: 45 },
 ];
 
 const DEFAULT_PORTAL_BANNER = "https://esmmpztgmkeuyhzubbaf.supabase.co/storage/v1/object/public/assets/image.png";
@@ -156,7 +152,7 @@ export default function App() {
   const [workerAssignTemplate, setWorkerAssignTemplate] = useState(() => localStorage.getItem('pevuno_assign_template') || DEFAULT_WORKER_ASSIGN_TEMPLATE);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
 
-  // Müşteri Paneli State'leri (Paket alanı kaldırıldı, sadece gruplandırılmış hizmetler ve iletişim kaldı)
+  // Müşteri Paneli State'leri
   const [clientSelectedItems, setClientSelectedItems] = useState({});
   const [clientCustomerName, setClientCustomerName] = useState('');
   const [clientCustomerPhone, setClientCustomerPhone] = useState('');
@@ -243,6 +239,8 @@ export default function App() {
   const [newWorkerPin, setNewWorkerPin] = useState('');
   const [newWorkerRole, setNewWorkerRole] = useState('worker');
   const [newWorkerPhone, setNewWorkerPhone] = useState('');
+  const [editingWorkerId, setEditingWorkerId] = useState(null);
+
   const [newService, setNewService] = useState({ category: 'Genel Alanlar', name: '', price: '', unit: 'adet', durationMinutes: 30 });
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [selectedJobForReceipt, setSelectedJobForReceipt] = useState(null);
@@ -349,22 +347,29 @@ export default function App() {
     }
   };
 
-  const handleAddWorker = (e) => {
+  const handleAddOrUpdateWorker = (e) => {
     e.preventDefault();
     if (!newWorkerName || !newWorkerPin || !newWorkerUsername || !newWorkerPhone) {
       alert('Lütfen tüm bilgileri doldurunuz.');
       return;
     }
     const cleanUser = newWorkerUsername.trim().toLowerCase();
-    if (workers.some(w => w.username?.toLowerCase() === cleanUser)) {
-      alert('Bu kullanıcı adı zaten kullanılıyor!');
-      return;
-    }
     const cleanName = newWorkerName.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
-    const newWObj = { id: `usr-${Date.now()}`, username: cleanUser, name: cleanName, pin: newWorkerPin, role: newWorkerRole, phone: newWorkerPhone };
-    updateWorkers([...workers, newWObj]);
-    setNewWorkerUsername(''); setNewWorkerName(''); setNewWorkerPin(''); setNewWorkerPhone('');
-    alert('Kullanıcı başarıyla eklendi!');
+
+    if (editingWorkerId) {
+      updateWorkers(workers.map(w => w.id === editingWorkerId ? { ...w, username: cleanUser, name: cleanName, pin: newWorkerPin, role: newWorkerRole, phone: newWorkerPhone } : w));
+      setEditingWorkerId(null);
+      alert('Kullanıcı bilgileri güncellendi!');
+    } else {
+      if (workers.some(w => w.username?.toLowerCase() === cleanUser)) {
+        alert('Bu kullanıcı adı zaten kullanılıyor!');
+        return;
+      }
+      const newWObj = { id: `usr-${Date.now()}`, username: cleanUser, name: cleanName, pin: newWorkerPin, role: newWorkerRole, phone: newWorkerPhone };
+      updateWorkers([...workers, newWObj]);
+      alert('Kullanıcı başarıyla eklendi!');
+    }
+    setNewWorkerUsername(''); setNewWorkerName(''); setNewWorkerPin(''); setNewWorkerPhone(''); setNewWorkerRole('worker');
   };
 
   const handleDeleteWorker = (workerId) => {
@@ -673,15 +678,24 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
-  // MÜŞTERİ PANELİ EKRANI (Gruplandırılmış ve paket alanı kaldırılmış sade yapı)
+  // MÜŞTERİ PANELİ EKRANI (Gruplandırılmış, süre ve ücret göstergeli)
   if (showPortalDirectly || activeTab === 'client-portal') {
-    // Hizmetleri kategorilerine göre grupla
     const groupedServices = services.reduce((acc, srv) => {
       const cat = srv.category || 'Genel Alanlar';
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(srv);
       return acc;
     }, {});
+
+    const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
+      const srv = services.find(s => s.id === sId);
+      return sum + (srv ? srv.price * qty : 0);
+    }, 0);
+
+    const calcTotalDuration = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
+      const srv = services.find(s => s.id === sId);
+      return sum + (srv ? (srv.durationMinutes || 30) * qty : 0);
+    }, 0);
 
     return (
       <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
@@ -700,7 +714,6 @@ export default function App() {
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-700 uppercase">Temizlik Alanları ve Ürün Seçimi</h3>
             
-            {/* Gruplandırılmış Alanlar */}
             {Object.entries(groupedServices).map(([categoryName, catServices]) => (
               <div key={categoryName} className="bg-slate-50 border rounded-2xl p-4 space-y-3">
                 <h4 className="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center justify-between">
@@ -714,6 +727,7 @@ export default function App() {
                         <div>
                           <div className="font-bold text-xs text-slate-900">{srv.name}</div>
                           <div className="text-xs text-emerald-600 font-extrabold">{srv.price} TL / {srv.unit}</div>
+                          <div className="text-[11px] text-purple-700 font-bold mt-0.5">⏱️ Tahmini Süre: {srv.durationMinutes || 30} dk</div>
                         </div>
                         <div className="flex items-center space-x-2">
                           <button 
@@ -749,21 +763,16 @@ export default function App() {
             <textarea rows={3} placeholder="Açık Adresiniz (İlçe, Mahalle, Sokak)..." value={clientCustomerAddress} onChange={(e) => setClientCustomerAddress(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
           </div>
 
-          {(() => {
-            const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
-              const srv = services.find(s => s.id === sId);
-              return sum + (srv ? srv.price * qty : 0);
-            }, 0);
-            return (
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex justify-between items-center">
-                <div>
-                  <span className="text-xs text-slate-600 font-bold block">Pevuno Solution Profesyonel Hizmet</span>
-                  <span className="text-sm font-black text-slate-900">Hesaplanan Toplam Tutar</span>
-                </div>
-                <div className="text-xl font-black text-emerald-700">{calcSubTotal} TL</div>
-              </div>
-            );
-          })()}
+          <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex justify-between items-center">
+            <div>
+              <span className="text-xs text-slate-600 font-bold block">Pevuno Solution Profesyonel Hizmet</span>
+              <span className="text-sm font-black text-slate-900">Toplam Ücret ve Süre</span>
+            </div>
+            <div className="text-right">
+              <div className="text-xl font-black text-emerald-700">{calcSubTotal} TL</div>
+              <div className="text-xs font-bold text-purple-700">⏱️ ~{calcTotalDuration} dk</div>
+            </div>
+          </div>
 
           <button 
             type="button"
@@ -778,11 +787,7 @@ export default function App() {
                   const srv = services.find(s => s.id === sId);
                   return `${srv?.name} x${qty}`;
                 }).join(', ');
-              const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
-                const srv = services.find(s => s.id === sId);
-                return sum + (srv ? srv.price * qty : 0);
-              }, 0);
-              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n\nRandevu oluşturmak istiyorum.`;
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~${calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
               window.open(`https://wa.me/905384007070?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
@@ -815,12 +820,15 @@ export default function App() {
             </div>
             <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition">Sisteme Giriş Yap 🚀</button>
           </form>
-          <div className="pt-4 border-t text-center">
+          
+          {/* Dikkat çekici yeşil kutulu müşteri paneli butonu */}
+          <div className="pt-2">
             <button 
               onClick={() => setShowPortalDirectly(true)} 
-              className="text-xs font-bold text-emerald-600 hover:underline"
+              className="w-full bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-500 text-emerald-800 font-extrabold py-3.5 px-4 rounded-2xl shadow transition flex items-center justify-center space-x-2 text-sm"
             >
-              👉 Müşteri Fiyat Hesaplama Paneli (Şifresiz)
+              <MessageSquare className="w-4 h-4 text-emerald-600" />
+              <span>👉 Müşteri Fiyat Hesaplama Paneli (Şifresiz)</span>
             </button>
           </div>
         </div>
@@ -830,6 +838,14 @@ export default function App() {
 
   const cleanCurrentUserName = getCleanDisplayName(currentUser.name);
   const roleDisplay = currentUser.role === 'admin' ? 'Yönetici' : 'Personel';
+
+  // CRM Yeni İş Kaydı için hizmetleri grupla
+  const groupedServicesForAdmin = services.reduce((acc, srv) => {
+    const cat = srv.category || 'Genel Alanlar';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(srv);
+    return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
@@ -1033,6 +1049,7 @@ export default function App() {
           </div>
         )}
 
+        {/* YENİ İŞ KAYDI - GRUPLANDIRILMIŞ VE SÜRE GÖSTERGELİ */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1114,28 +1131,59 @@ export default function App() {
                 </div>
               </div>
               
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                <label className="block text-xs font-bold text-slate-700 uppercase">Hizmet Kataloğu & Dakika Seçimi</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {services.map((srv) => (
-                    <button key={srv.id} type="button" onClick={() => {
-                      const exists = selectedItems.find(i => i.serviceId === srv.id);
-                      if (exists) {
-                        setSelectedItems(selectedItems.map(i => i.serviceId === srv.id ? { ...i, qty: i.qty + 1 } : i));
-                      } else {
-                        setSelectedItems([...selectedItems, { serviceId: srv.id, serviceName: srv.name, qty: 1, unitPrice: srv.price, durationMinutes: srv.durationMinutes || 30 }]);
-                      }
-                    }} className="bg-white border hover:border-emerald-500 p-3 rounded-xl text-left shadow-sm">
-                      <div className="font-semibold text-xs text-slate-800">{srv.name}</div>
-                      <div className="text-emerald-600 font-extrabold text-sm mt-1">{srv.price} TL</div>
-                      <div className="text-[11px] text-purple-700 font-bold mt-0.5">⏱️ {srv.durationMinutes || 30} dk</div>
-                    </button>
-                  ))}
-                </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                <label className="block text-xs font-bold text-slate-700 uppercase">Hizmet Kataloğu & Gruplandırılmış Seçim</label>
+                
+                {Object.entries(groupedServicesForAdmin).map(([catName, catSvcs]) => (
+                  <div key={catName} className="bg-white p-3 rounded-xl border space-y-2">
+                    <h4 className="font-extrabold text-xs text-slate-900 border-b pb-1">🏠 {catName}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {catSvcs.map((srv) => {
+                        const existingItem = selectedItems.find(i => i.serviceId === srv.id);
+                        const qty = existingItem ? existingItem.qty : 0;
+                        return (
+                          <div key={srv.id} className="bg-slate-50 border p-2.5 rounded-xl flex items-center justify-between">
+                            <div>
+                              <div className="font-bold text-xs text-slate-800">{srv.name}</div>
+                              <div className="text-emerald-600 font-extrabold text-xs">{srv.price} TL / {srv.unit}</div>
+                              <div className="text-[10px] text-purple-700 font-bold">⏱️ {srv.durationMinutes || 30} dk</div>
+                            </div>
+                            <div className="flex items-center space-x-1.5">
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  if (qty <= 1) {
+                                    setSelectedItems(selectedItems.filter(i => i.serviceId !== srv.id));
+                                  } else {
+                                    setSelectedItems(selectedItems.map(i => i.serviceId === srv.id ? { ...i, qty: i.qty - 1 } : i));
+                                  }
+                                }} 
+                                className="w-6 h-6 bg-slate-200 hover:bg-slate-300 font-bold rounded text-xs"
+                              >-</button>
+                              <span className="text-xs font-black w-4 text-center">{qty}</span>
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  if (existingItem) {
+                                    setSelectedItems(selectedItems.map(i => i.serviceId === srv.id ? { ...i, qty: i.qty + 1 } : i));
+                                  } else {
+                                    setSelectedItems([...selectedItems, { serviceId: srv.id, serviceName: srv.name, qty: 1, unitPrice: srv.price, durationMinutes: srv.durationMinutes || 30 }]);
+                                  }
+                                }} 
+                                className="w-6 h-6 bg-emerald-600 text-white font-bold rounded text-xs"
+                              >+</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
                 {selectedItems.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-200 space-y-2">
                     <div className="flex justify-between items-center">
-                      <p className="text-xs font-bold text-slate-600">Seçilen Kalemler:</p>
+                      <p className="text-xs font-bold text-slate-600">Seçilen Kalemler Özeti:</p>
                       <span className="text-xs font-extrabold text-purple-700 bg-purple-50 px-2 py-1 rounded border border-purple-200">
                         ⏱️ Toplam Süre: ~{totalDuration} dk | Tutar: {finalTotal} TL
                       </span>
@@ -1241,11 +1289,12 @@ export default function App() {
           </div>
         )}
 
+        {/* PERSONEL YÖNETİMİ - DÜZENLE (GÜNCELLE) ÖZELLİKLİ */}
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Kullanıcı Adı, Rol, Şifre & Telefon Yönetimi</h2>
-              <form onSubmit={handleAddWorker} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border">
+              <h2 className="text-xl font-bold text-slate-950">Kullanıcı Adı, Rol, Şifre, Telefon & Güncelleme Yönetimi</h2>
+              <form onSubmit={handleAddOrUpdateWorker} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border">
                 <input type="text" required placeholder="Kullanıcı Adı" value={newWorkerUsername} onChange={(e) => setNewWorkerUsername(e.target.value)} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <input type="text" required placeholder="Ad Soyad" value={newWorkerName} onChange={(e) => setNewWorkerName(e.target.value)} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <input type="text" required placeholder="Şifre" value={newWorkerPin} onChange={(e) => setNewWorkerPin(e.target.value)} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
@@ -1254,8 +1303,13 @@ export default function App() {
                   <option value="worker">👷 Saha</option>
                   <option value="admin">👑 Yönetici</option>
                 </select>
-                <div className="sm:col-span-5">
-                  <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm shadow">Kullanıcıyı Kaydet</button>
+                <div className="sm:col-span-5 flex space-x-2">
+                  <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm shadow">
+                    {editingWorkerId ? 'Kullanıcıyı Güncelle 🔄' : 'Yeni Kullanıcıyı Kaydet 🚀'}
+                  </button>
+                  {editingWorkerId && (
+                    <button type="button" onClick={() => { setEditingWorkerId(null); setNewWorkerUsername(''); setNewWorkerName(''); setNewWorkerPin(''); setNewWorkerPhone(''); }} className="bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold">İptal</button>
+                  )}
                 </div>
               </form>
               <div className="divide-y border rounded-xl overflow-hidden">
@@ -1265,7 +1319,13 @@ export default function App() {
                       <h4 className="font-bold text-slate-800 text-sm">{getCleanDisplayName(w.name)} ({w.role === 'admin' ? 'Yönetici' : 'Saha'})</h4>
                       <p className="text-xs text-slate-500 font-mono">Kullanıcı Adı: <strong>{w.username}</strong> | Şifre: <strong className="text-emerald-700">{w.pin}</strong> | Tel: <strong className="text-blue-600">{w.phone || 'Girilmedi'}</strong></p>
                     </div>
-                    <button onClick={() => handleDeleteWorker(w.id)} className="text-rose-500 p-1"><Trash2 className="w-4 h-4" /></button>
+                    <div className="flex items-center space-x-2">
+                      <button onClick={() => { setEditingWorkerId(w.id); setNewWorkerUsername(w.username || ''); setNewWorkerName(w.name || ''); setNewWorkerPin(w.pin || ''); setNewWorkerPhone(w.phone || ''); setNewWorkerRole(w.role || 'worker'); }} className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1">
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Düzenle</span>
+                      </button>
+                      <button onClick={() => handleDeleteWorker(w.id)} className="text-rose-500 p-1.5 hover:bg-rose-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1278,7 +1338,7 @@ export default function App() {
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
               <h2 className="text-xl font-bold text-slate-900">Hizmet, Kategori, Fiyat & Dakika Süre Yönetimi</h2>
               <form onSubmit={handleAddOrUpdateService} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border">
-                <input type="text" required placeholder="Grup / Kategori (Örn: Çocuk Odası)" value={newService.category} onChange={(e) => setNewService({ ...newService, category: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
+                <input type="text" required placeholder="Grup / Kategori (Örn: Çocuk Yatak Odası)" value={newService.category} onChange={(e) => setNewService({ ...newService, category: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <input type="text" required placeholder="Hizmet Adı" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <input type="number" required placeholder="Fiyat (TL)" value={newService.price} onChange={(e) => setNewService({ ...newService, price: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <input type="number" required placeholder="Süre (dk)" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
@@ -1477,7 +1537,7 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           <span>📅 Tarih: {formattedDate}</span>
           <span>⏱️ Başlangıç: {job.time || '10:00'}</span>
         </div>
-        <div className="text-purple-700">🏁 Tahmini Bitiş Saati: {estEndTime}</div>
+        <div className="text-purple-700">🏁 Tahmini Bitiş Saati: {estEndTime} (~{job.estimatedDurationMinutes || 30} dk)</div>
         <p className="text-slate-600 font-normal pt-1 border-t border-emerald-200">📍 Adres: {job.address}</p>
       </div>
 
