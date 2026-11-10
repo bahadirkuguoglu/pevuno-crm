@@ -67,10 +67,19 @@ async function saveSupabaseData(key, value) {
   }
 }
 
+const DEFAULT_CATEGORIES = [
+  'Çocuk Yatak Odası',
+  'Salon / Oturma Odası',
+  'Yatak Odası',
+  'Mutfak / Yemek Alanı',
+  'Banyo / Hijyen',
+  'Genel Alanlar'
+];
+
 const DEFAULT_SERVICES = [
-  { id: '1', category: 'Çocuk Yatak Odası', name: 'Essential | Tek Kişilik Yatak Yıkama', price: 750, unit: 'adet', durationMinutes: 40 },
-  { id: '2', category: 'Genel Alanlar', name: 'Comfort | Tek Kişilik Yatak Yıkama', price: 1000, unit: 'adet', durationMinutes: 40 },
-  { id: '3', category: 'Genel Alanlar', name: 'Premium | Tek Kişilik Yatak Yıkama', price: 1250, unit: 'adet', durationMinutes: 45 },
+  { id: '1', category: 'Çocuk Yatak Odası', name: 'Essential | Tek Kişilik Yatak Yıkama', price: 750, unit: 'adet', durationMinutes: 30 },
+  { id: '2', category: 'Çocuk Yatak Odası', name: 'Comfort | Tek Kişilik Yatak Yıkama', price: 1000, unit: 'adet', durationMinutes: 35 },
+  { id: '3', category: 'Genel Alanlar', name: 'Premium | Tek Kişilik Yatak Yıkama', price: 1250, unit: 'adet', durationMinutes: 40 },
 ];
 
 const DEFAULT_PORTAL_BANNER = "https://esmmpztgmkeuyhzubbaf.supabase.co/storage/v1/object/public/assets/image.png";
@@ -111,6 +120,11 @@ export default function App() {
   const [showPortalDirectly, setShowPortalDirectly] = useState(false);
   const [isSynced, setIsSynced] = useState(false);
   const receiptRef = useRef(null);
+
+  const [categories, setCategories] = useState(() => {
+    const saved = localStorage.getItem('pevuno_categories');
+    return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+  });
 
   const [services, setServices] = useState(() => {
     const saved = localStorage.getItem('pevuno_services');
@@ -161,6 +175,9 @@ export default function App() {
   const syncWithCloud = async () => {
     setIsSynced(false);
     try {
+      const cloudCats = await fetchSupabaseData('categories', null);
+      if (cloudCats && Array.isArray(cloudCats)) { setCategories(cloudCats); localStorage.setItem('pevuno_categories', JSON.stringify(cloudCats)); }
+
       const cloudServices = await fetchSupabaseData('services', null);
       if (cloudServices && Array.isArray(cloudServices)) { setServices(cloudServices); localStorage.setItem('pevuno_services', JSON.stringify(cloudServices)); }
       
@@ -241,7 +258,9 @@ export default function App() {
   const [newWorkerPhone, setNewWorkerPhone] = useState('');
   const [editingWorkerId, setEditingWorkerId] = useState(null);
 
-  const [newService, setNewService] = useState({ category: 'Genel Alanlar', name: '', price: '', unit: 'adet', durationMinutes: 30 });
+  const [newCategoryCustomInput, setNewCategoryCustomInput] = useState('');
+  const [showCustomCategoryInput, setShowCustomCategoryInput] = useState(false);
+  const [newService, setNewService] = useState({ category: DEFAULT_CATEGORIES[0], name: '', price: '', unit: 'adet', durationMinutes: 30 });
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [selectedJobForReceipt, setSelectedJobForReceipt] = useState(null);
 
@@ -253,22 +272,13 @@ export default function App() {
     await saveSupabaseData(key, newValue);
   };
 
+  const updateCategories = (newCats) => commitChange('categories', newCats, setCategories, 'pevuno_categories');
   const updateServices = (newServ) => commitChange('services', newServ, setServices, 'pevuno_services');
   const updateWorkers = (newWork) => commitChange('workers', newWork, setWorkers, 'pevuno_workers');
   const updateJobs = (newJbs) => commitChange('jobs', newJbs, setJobs, 'pevuno_jobs');
   const updateCustomers = (newCust) => commitChange('customers', newCust, setCustomers, 'pevuno_customers');
   const updateNextCustId = (newVal) => commitChange('next_cust_id', newVal, setNextCustIdNum, 'pevuno_next_cust_id');
   const updateNextJobId = (newVal) => commitChange('next_job_id', newVal, setNextJobIdNum, 'pevuno_next_job_id');
-
-  const moveService = (index, direction) => {
-    const newServices = [...services];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newServices.length) return;
-    const temp = newServices[index];
-    newServices[index] = newServices[targetIndex];
-    newServices[targetIndex] = temp;
-    updateServices(newServices);
-  };
 
   const handleSaveTemplates = async (e, type) => {
     e.preventDefault();
@@ -418,14 +428,25 @@ export default function App() {
   const handleAddOrUpdateService = (e) => {
     e.preventDefault();
     if (!newService.name || !newService.price) return;
+    
+    let targetCat = newService.category;
+    if (showCustomCategoryInput && newCategoryCustomInput.trim()) {
+      targetCat = newCategoryCustomInput.trim();
+      if (!categories.includes(targetCat)) {
+        updateCategories([...categories, targetCat]);
+      }
+    }
+
     const duration = Number(newService.durationMinutes) || 30;
     if (editingServiceId) {
-      updateServices(services.map(s => s.id === editingServiceId ? { ...s, category: newService.category, name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration } : s));
+      updateServices(services.map(s => s.id === editingServiceId ? { ...s, category: targetCat, name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration } : s));
       setEditingServiceId(null);
     } else {
-      updateServices([...services, { id: Date.now().toString(), category: newService.category || 'Genel Alanlar', name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration }]);
+      updateServices([...services, { id: Date.now().toString(), category: targetCat || 'Genel Alanlar', name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration }]);
     }
-    setNewService({ category: 'Genel Alanlar', name: '', price: '', unit: 'adet', durationMinutes: 30 });
+    setNewService({ category: categories[0] || 'Genel Alanlar', name: '', price: '', unit: 'adet', durationMinutes: 30 });
+    setShowCustomCategoryInput(false);
+    setNewCategoryCustomInput('');
   };
 
   const handleCreateJob = (e) => {
@@ -678,7 +699,7 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
-  // MÜŞTERİ PANELİ EKRANI (Gruplandırılmış, süre ve ücret göstergeli)
+  // MÜŞTERİ PANELİ EKRANI
   if (showPortalDirectly || activeTab === 'client-portal') {
     const groupedServices = services.reduce((acc, srv) => {
       const cat = srv.category || 'Genel Alanlar';
@@ -712,18 +733,18 @@ export default function App() {
           </div>
           
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-700 uppercase">Temizlik Alanları ve Ürün Seçimi</h3>
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">TEMİZLİK ALANLARI VE ÜRÜN SEÇİMİ</h3>
             
             {Object.entries(groupedServices).map(([categoryName, catServices]) => (
-              <div key={categoryName} className="bg-slate-50 border rounded-2xl p-4 space-y-3">
-                <h4 className="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center justify-between">
+              <div key={categoryName} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+                <h4 className="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center space-x-2">
                   <span>🏠 {categoryName}</span>
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {catServices.map(srv => {
                     const qty = clientSelectedItems[srv.id] || 0;
                     return (
-                      <div key={srv.id} className="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm">
+                      <div key={srv.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
                         <div>
                           <div className="font-bold text-xs text-slate-900">{srv.name}</div>
                           <div className="text-xs text-emerald-600 font-extrabold">{srv.price} TL / {srv.unit}</div>
@@ -821,7 +842,6 @@ export default function App() {
             <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition">Sisteme Giriş Yap 🚀</button>
           </form>
           
-          {/* Dikkat çekici yeşil kutulu müşteri paneli butonu */}
           <div className="pt-2">
             <button 
               onClick={() => setShowPortalDirectly(true)} 
@@ -839,8 +859,7 @@ export default function App() {
   const cleanCurrentUserName = getCleanDisplayName(currentUser.name);
   const roleDisplay = currentUser.role === 'admin' ? 'Yönetici' : 'Personel';
 
-  // CRM Yeni İş Kaydı için hizmetleri grupla
-  const groupedServicesForAdmin = services.reduce((acc, srv) => {
+  const groupedServicesMap = services.reduce((acc, srv) => {
     const cat = srv.category || 'Genel Alanlar';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(srv);
@@ -1049,7 +1068,7 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI - GRUPLANDIRILMIŞ VE SÜRE GÖSTERGELİ */}
+        {/* YENİ İŞ KAYDI - GRUPLANDIRILMIŞ CRM EKRANI */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1132,21 +1151,23 @@ export default function App() {
               </div>
               
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
-                <label className="block text-xs font-bold text-slate-700 uppercase">Hizmet Kataloğu & Gruplandırılmış Seçim</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">TEMİZLİK ALANLARI VE ÜRÜN SEÇİMİ</label>
                 
-                {Object.entries(groupedServicesForAdmin).map(([catName, catSvcs]) => (
-                  <div key={catName} className="bg-white p-3 rounded-xl border space-y-2">
-                    <h4 className="font-extrabold text-xs text-slate-900 border-b pb-1">🏠 {catName}</h4>
+                {Object.entries(groupedServicesMap).map(([catName, catSvcs]) => (
+                  <div key={catName} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
+                    <h4 className="font-extrabold text-xs text-slate-900 border-b pb-1.5 flex items-center space-x-1.5">
+                      <span>🏠 {catName}</span>
+                    </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {catSvcs.map((srv) => {
                         const existingItem = selectedItems.find(i => i.serviceId === srv.id);
                         const qty = existingItem ? existingItem.qty : 0;
                         return (
-                          <div key={srv.id} className="bg-slate-50 border p-2.5 rounded-xl flex items-center justify-between">
+                          <div key={srv.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between">
                             <div>
-                              <div className="font-bold text-xs text-slate-800">{srv.name}</div>
+                              <div className="font-bold text-xs text-slate-900">{srv.name}</div>
                               <div className="text-emerald-600 font-extrabold text-xs">{srv.price} TL / {srv.unit}</div>
-                              <div className="text-[10px] text-purple-700 font-bold">⏱️ {srv.durationMinutes || 30} dk</div>
+                              <div className="text-[10px] text-purple-700 font-bold mt-0.5">⏱️ {srv.durationMinutes || 30} dk</div>
                             </div>
                             <div className="flex items-center space-x-1.5">
                               <button 
@@ -1158,7 +1179,7 @@ export default function App() {
                                     setSelectedItems(selectedItems.map(i => i.serviceId === srv.id ? { ...i, qty: i.qty - 1 } : i));
                                   }
                                 }} 
-                                className="w-6 h-6 bg-slate-200 hover:bg-slate-300 font-bold rounded text-xs"
+                                className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
                               >-</button>
                               <span className="text-xs font-black w-4 text-center">{qty}</span>
                               <button 
@@ -1170,7 +1191,7 @@ export default function App() {
                                     setSelectedItems([...selectedItems, { serviceId: srv.id, serviceName: srv.name, qty: 1, unitPrice: srv.price, durationMinutes: srv.durationMinutes || 30 }]);
                                   }
                                 }} 
-                                className="w-6 h-6 bg-emerald-600 text-white font-bold rounded text-xs"
+                                className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
                               >+</button>
                             </div>
                           </div>
@@ -1184,7 +1205,7 @@ export default function App() {
                   <div className="mt-4 pt-3 border-t border-slate-200 space-y-2">
                     <div className="flex justify-between items-center">
                       <p className="text-xs font-bold text-slate-600">Seçilen Kalemler Özeti:</p>
-                      <span className="text-xs font-extrabold text-purple-700 bg-purple-50 px-2 py-1 rounded border border-purple-200">
+                      <span className="text-xs font-extrabold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200">
                         ⏱️ Toplam Süre: ~{totalDuration} dk | Tutar: {finalTotal} TL
                       </span>
                     </div>
@@ -1289,7 +1310,6 @@ export default function App() {
           </div>
         )}
 
-        {/* PERSONEL YÖNETİMİ - DÜZENLE (GÜNCELLE) ÖZELLİKLİ */}
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1333,35 +1353,116 @@ export default function App() {
           </div>
         )}
 
+        {/* FİYATLAR & SÜRELER - SEÇENEKLİ KATEGORİ SEÇİMİ VE MÜŞTERİ PANELİ GİBİ GRUPLANDIRILMIŞ GÖRÜNÜM */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Hizmet, Kategori, Fiyat & Dakika Süre Yönetimi</h2>
-              <form onSubmit={handleAddOrUpdateService} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border">
-                <input type="text" required placeholder="Grup / Kategori (Örn: Çocuk Yatak Odası)" value={newService.category} onChange={(e) => setNewService({ ...newService, category: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
-                <input type="text" required placeholder="Hizmet Adı" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
-                <input type="number" required placeholder="Fiyat (TL)" value={newService.price} onChange={(e) => setNewService({ ...newService, price: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
-                <input type="number" required placeholder="Süre (dk)" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
-                <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow">{editingServiceId ? 'Güncelle' : 'Ekle'}</button>
-              </form>
-              <div className="divide-y border rounded-xl overflow-hidden">
-                {services.map((srv, index) => (
-                  <div key={srv.id} className="p-4 flex items-center justify-between bg-white">
-                    <div className="flex items-center space-x-3">
-                      <div className="flex flex-col space-y-1">
-                        <button disabled={index === 0} onClick={() => moveService(index, 'up')} className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20"><ArrowUp className="w-4 h-4" /></button>
-                        <button disabled={index === services.length - 1} onClick={() => moveService(index, 'down')} className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20"><ArrowDown className="w-4 h-4" /></button>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">{srv.category || 'Genel Alanlar'}</span>
-                        <h4 className="font-bold text-slate-800 text-sm mt-0.5">{srv.name}</h4>
-                        <span className="text-xs text-purple-700 font-semibold">⏱️ Süre: {srv.durationMinutes || 30} dk | Birim: {srv.unit}</span>
-                      </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
+              <h2 className="text-xl font-bold text-slate-900">Hizmet, Kategori (Grup), Fiyat & Dakika Süre Yönetimi</h2>
+              
+              {/* Ekleme / Güncelleme Formu */}
+              <form onSubmit={handleAddOrUpdateService} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Grup / Kategori Seçin *</label>
+                  {!showCustomCategoryInput ? (
+                    <select 
+                      value={newService.category} 
+                      onChange={(e) => {
+                        if (e.target.value === '__NEW__') {
+                          setShowCustomCategoryInput(true);
+                        } else {
+                          setNewService({ ...newService, category: e.target.value });
+                        }
+                      }} 
+                      className="w-full border rounded-xl px-3 py-2 text-sm bg-white font-bold"
+                    >
+                      {categories.map(cat => (
+                        <option key={cat} value={cat}>🏠 {cat}</option>
+                      ))}
+                      <option value="__NEW__">➕ Yeni Grup Ekle...</option>
+                    </select>
+                  ) : (
+                    <div className="flex gap-1">
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="Yeni Grup Adı (örn: Balkon)" 
+                        value={newCategoryCustomInput} 
+                        onChange={(e) => setNewCategoryCustomInput(e.target.value)} 
+                        className="w-full border rounded-xl px-3 py-2 text-sm bg-white" 
+                      />
+                      <button type="button" onClick={() => setShowCustomCategoryInput(false)} className="bg-slate-200 text-slate-700 px-2.5 rounded-xl text-xs font-bold">✕</button>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <span className="font-extrabold text-slate-900">{srv.price} TL</span>
-                      <button onClick={() => { setEditingServiceId(srv.id); setNewService({ category: srv.category || 'Genel Alanlar', name: srv.name, price: srv.price, unit: srv.unit || 'adet', durationMinutes: srv.durationMinutes || 30 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Edit3 className="w-4 h-4" /></button>
-                      <button onClick={() => updateServices(services.filter(s => s.id !== srv.id))} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                  )}
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Hizmet Adı *</label>
+                  <input type="text" required placeholder="Örn: Essential | Tek Kişilik Yatak Yıkama" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} className="w-full border rounded-xl px-3.5 py-2 text-sm bg-white" />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Fiyat (TL) *</label>
+                  <input type="number" required placeholder="TL" value={newService.price} onChange={(e) => setNewService({ ...newService, price: e.target.value })} className="w-full border rounded-xl px-3.5 py-2 text-sm bg-white" />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Birim *</label>
+                  <select value={newService.unit} onChange={(e) => setNewService({ ...newService, unit: e.target.value })} className="w-full border rounded-xl px-3 py-2 text-sm bg-white font-bold">
+                    <option value="adet">adet</option>
+                    <option value="takım">takım</option>
+                    <option value="m²">m²</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Süre (Dakika) *</label>
+                  <input type="number" required placeholder="dk" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} className="w-full border rounded-xl px-3.5 py-2 text-sm bg-white" />
+                </div>
+
+                <div className="sm:col-span-2 flex items-end">
+                  <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 text-sm rounded-xl shadow">
+                    {editingServiceId ? 'Hizmeti Güncelle 🔄' : 'Yeni Hizmet Ekle 🚀'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Müşteri Ekranı Tarzı Gruplandırılmış Kart Yapısı */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">MEVCUT HİZMET KATALOĞU (GRUPLANDIRILMIŞ)</h3>
+                
+                {Object.entries(groupedServicesMap).map(([catName, catSvcs]) => (
+                  <div key={catName} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+                    <h4 className="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center space-x-2">
+                      <span>🏠 {catName}</span>
+                      <span className="text-xs text-slate-400 font-normal">({catSvcs.length} Hizmet)</span>
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {catSvcs.map((srv) => (
+                        <div key={srv.id} className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-sm flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-xs text-slate-900">{srv.name}</div>
+                            <div className="text-xs text-emerald-600 font-extrabold mt-0.5">{srv.price} TL / {srv.unit}</div>
+                            <div className="text-[11px] text-purple-700 font-bold mt-0.5">⏱️ Süre: {srv.durationMinutes || 30} dk</div>
+                          </div>
+                          <div className="flex items-center space-x-1 shrink-0">
+                            <button 
+                              onClick={() => { 
+                                setEditingServiceId(srv.id); 
+                                setNewService({ category: srv.category || categories[0], name: srv.name, price: srv.price, unit: srv.unit || 'adet', durationMinutes: srv.durationMinutes || 30 }); 
+                              }} 
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg border border-blue-100"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => updateServices(services.filter(s => s.id !== srv.id))} 
+                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg border border-rose-100"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
