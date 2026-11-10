@@ -3,7 +3,7 @@ import {
   Users, ShoppingBag, PlusCircle, Calendar, RefreshCw, 
   TrendingUp, CheckCircle2, Clock, MapPin, Phone, 
   MessageSquare, DollarSign, Edit3, Trash2, Search, Download,
-  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send, UserCheck, LayoutDashboard, UserCheck2, Navigation, Building2, ArrowUp, ArrowDown, RotateCcw, Image
+  FileText, Star, Settings, Percent, Tag, LogOut, ChevronRight, Lock, ShieldCheck, UserPlus, Cloud, BookOpen, Send, UserCheck, LayoutDashboard, UserCheck2, Navigation, Building2, ArrowUp, ArrowDown, RotateCcw, Image, ExternalLink
 } from 'lucide-react';
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
@@ -83,7 +83,7 @@ const DEFAULT_SERVICES = [
   { id: '3', category: 'Genel Alanlar', name: 'Premium | Tek Kişilik Yatak Yıkama', price: 1250, unit: 'adet', durationMinutes: 40 },
 ];
 
-const DEFAULT_PORTAL_BANNER = "https://esmmpztgmkeuyhzubbaf.supabase.co/storage/v1/object/public/assets/image.png";
+const DEFAULT_PORTAL_BANNER = "https://i.ibb.co/wZnLyNBT/PVN-FL-10-11-2026.png";
 
 const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]* (ID: *[Müşteri No]*),
 Evinizde/iş yerinizde hijyeni her zaman en üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨
@@ -167,7 +167,6 @@ export default function App() {
   const [workerAssignTemplate, setWorkerAssignTemplate] = useState(() => localStorage.getItem('pevuno_assign_template') || DEFAULT_WORKER_ASSIGN_TEMPLATE);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
 
-  // Müşteri Paneli State'leri
   const [clientSelectedItems, setClientSelectedItems] = useState({});
   const [clientCustomerName, setClientCustomerName] = useState('');
   const [clientCustomerPhone, setClientCustomerPhone] = useState('');
@@ -555,21 +554,47 @@ export default function App() {
   const completedJobsList = jobs.filter(j => isCompletedStatus(j.status));
   const activeJobsList = jobs.filter(j => !isCompletedStatus(j.status));
 
+  // IPHONE ANA EKRAN UYGULAMA (PWA) MODUNA ÖZEL GÖRSEL OLUŞTURMA & YENİ SEKMEDE AÇMA
   const downloadReceiptAsImage = () => {
     if (!receiptRef.current) return;
     
     const executeCapture = () => {
       window.html2canvas(receiptRef.current, { scale: 2, useCORS: true, logging: false }).then(canvas => {
         const image = canvas.toDataURL('image/jpeg', 0.95);
-        const link = document.createElement('a');
-        link.href = image;
-        link.download = `Pevuno_Servis_Fisi_${selectedJobForReceipt?.customerName?.replace(/\s+/g, '_')}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        
+        // PWA uygulamasında doğrudan indirme yerine yeni sekmede açarak galeriye kaydetme kolaylığı sağlar
+        const newWindow = window.open();
+        if (newWindow) {
+          newWindow.document.write(`
+            <html>
+              <head>
+                <title>Pevuno Servis Fişi</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                  body { margin: 0; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: white; padding: 15px; text-align: center; }
+                  img { max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; }
+                  .hint { background: #10b981; color: white; padding: 12px 20px; border-radius: 12px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+                </style>
+              </head>
+              <body>
+                <div class="hint">👇 Fişi kaydetmek için resme parmağınızla basılı tutun ve "Fotoğraflara Ekle" seçin!</div>
+                <br>
+                <img src="${image}" alt="Servis Fişi" />
+              </body>
+            </html>
+          `);
+        } else {
+          // Normal indirme yedeği
+          const link = document.createElement('a');
+          link.href = image;
+          link.download = `Pevuno_Servis_Fisi_${selectedJobForReceipt?.customerName?.replace(/\s+/g, '_')}.jpg`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       }).catch(err => {
-        console.error("html2canvas indirirken hata oluştu:", err);
-        alert("Görsel indirme hatası. Lütfen sayfayı yenileyip tekrar deneyiniz.");
+        console.error("html2canvas hatası:", err);
+        alert("Görsel oluşturulurken bir hata oluştu.");
       });
     };
 
@@ -704,7 +729,7 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
-  // MÜŞTERİ PANELİ EKRANI (SEÇİM ÖZETLİ & BANNER GÖRSELLİ)
+  // MÜŞTERİ PANELİ EKRANI
   if (showPortalDirectly || activeTab === 'client-portal') {
     const groupedServices = services.reduce((acc, srv) => {
       const cat = srv.category || 'Genel Alanlar';
@@ -729,7 +754,6 @@ export default function App() {
       <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
         <div className="max-w-2xl mx-auto space-y-6 bg-white p-6 sm:p-8 rounded-3xl shadow-xl border">
           
-          {/* BANNER GÖRSELİ */}
           {portalBannerUrl && (
             <div className="w-full overflow-hidden rounded-2xl shadow-sm border border-slate-200">
               <img src={portalBannerUrl} alt="Pevuno Banner" className="w-full h-auto object-cover max-h-56" />
@@ -792,7 +816,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* SEÇİM ÖZETİ KUTUSU */}
           {activeSelectedList.length > 0 && (
             <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl space-y-2">
               <h4 className="text-xs font-black text-purple-900 uppercase tracking-wide">📋 Sepet / Seçim Özetiniz</h4>
@@ -840,7 +863,7 @@ export default function App() {
                 const srv = services.find(s => s.id === sId);
                 return `${srv?.name} x${qty}`;
               }).join(', ');
-              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~${calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~{calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
               window.open(`https://wa.me/${CORPORATE_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
@@ -1100,7 +1123,6 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI (İNDİRİM DESTEKLİ) */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1242,7 +1264,6 @@ export default function App() {
                       </span>
                     </div>
 
-                    {/* İNDİRİM SEÇENEKLERİ */}
                     <div className="bg-white p-3 rounded-xl border flex flex-col sm:flex-row items-center gap-3">
                       <div className="w-full sm:w-auto">
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">İndirim Türü</label>
@@ -1342,7 +1363,6 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {/* ADRES KISMI AYRI SATIRDA GENİŞ ALAN */}
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Açık Adres *</label>
                   <textarea rows={3} placeholder="İlçe, Mahalle, Cadde, Bina No, Daire..." value={quickAddress} onChange={(e) => setQuickAddress(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
@@ -1424,7 +1444,6 @@ export default function App() {
           </div>
         )}
 
-        {/* FİYATLAR & SÜRELER */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
@@ -1547,7 +1566,7 @@ export default function App() {
                 <Image className="w-4 h-4 text-emerald-600" />
                 <span>Müşteri Paneli Banner / Görsel URL Yönetimi</span>
               </h3>
-              <p className="text-xs text-slate-500">Bilgisayarınızdaki resmi imgbb.com gibi bir siteye yükleyip aldığınız doğrudan linki (URL) buraya yapıştırabilirsiniz.</p>
+              <p className="text-xs text-slate-500">imgbb.com üzerinden aldığınız doğrudan PNG resim bağlantısını buraya yapıştırabilirsiniz.</p>
               <form onSubmit={(e) => handleSaveTemplates(e, 'banner')} className="flex gap-2">
                 <input type="text" value={tempBannerInput} onChange={(e) => setTempBannerInput(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50 flex-1" placeholder="https://..." />
                 <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow">Görsel URL Kaydet</button>
@@ -1656,7 +1675,7 @@ export default function App() {
             <div className="space-y-2 pt-2">
               <button onClick={downloadReceiptAsImage} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl text-xs shadow flex items-center justify-center space-x-2">
                 <Download className="w-4 h-4" />
-                <span>📸 Fiş Görselini İndir (JPEG - WP İçin)</span>
+                <span>📸 Fiş Görselini Oluştur (Galeriye Kaydetmek İçin Dokun)</span>
               </button>
               <div className="flex space-x-2">
                 <button onClick={() => sendWhatsAppMessage('completion', selectedJobForReceipt)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs">WP ile Gönder</button>
