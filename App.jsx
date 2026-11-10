@@ -554,7 +554,7 @@ export default function App() {
   const completedJobsList = jobs.filter(j => isCompletedStatus(j.status));
   const activeJobsList = jobs.filter(j => !isCompletedStatus(j.status));
 
-  // IPHONE ANA EKRAN UYGULAMA (PWA) MODUNA ÖZEL GÖRSEL OLUŞTURMA & YENİ SEKMEDE AÇMA
+  // IPHONE ANA EKRAN UYGULAMA (PWA) MODUNA ÖZEL Fİş AÇMA VE GERİ DÖN TUŞU EKLENMİŞ FONKSİYON
   const downloadReceiptAsImage = () => {
     if (!receiptRef.current) return;
     
@@ -562,7 +562,6 @@ export default function App() {
       window.html2canvas(receiptRef.current, { scale: 2, useCORS: true, logging: false }).then(canvas => {
         const image = canvas.toDataURL('image/jpeg', 0.95);
         
-        // PWA uygulamasında doğrudan indirme yerine yeni sekmede açarak galeriye kaydetme kolaylığı sağlar
         const newWindow = window.open();
         if (newWindow) {
           newWindow.document.write(`
@@ -571,20 +570,20 @@ export default function App() {
                 <title>Pevuno Servis Fişi</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
-                  body { margin: 0; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: white; padding: 15px; text-align: center; }
+                  body { margin: 0; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; font-family: sans-serif; color: white; padding: 20px; text-align: center; }
                   img { max-width: 100%; height: auto; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; }
-                  .hint { background: #10b981; color: white; padding: 12px 20px; border-radius: 12px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 12px rgba(16,185,129,0.3); }
+                  .hint { background: #10b981; color: white; padding: 12px 20px; border-radius: 12px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 12px rgba(16,185,129,0.3); margin-bottom: 15px; }
+                  .back-btn { background: #3b82f6; color: white; border: none; padding: 14px 24px; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,0.4); text-decoration: none; display: inline-block; margin-bottom: 30px; }
                 </style>
               </head>
               <body>
+                <button class="back-btn" onclick="window.close()">⬅️ CRM Paneline Geri Dön</button>
                 <div class="hint">👇 Fişi kaydetmek için resme parmağınızla basılı tutun ve "Fotoğraflara Ekle" seçin!</div>
-                <br>
                 <img src="${image}" alt="Servis Fişi" />
               </body>
             </html>
           `);
         } else {
-          // Normal indirme yedeği
           const link = document.createElement('a');
           link.href = image;
           link.download = `Pevuno_Servis_Fisi_${selectedJobForReceipt?.customerName?.replace(/\s+/g, '_')}.jpg`;
