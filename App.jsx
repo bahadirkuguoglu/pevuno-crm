@@ -8,6 +8,7 @@ import {
 
 const SUPABASE_URL = "https://esmmpztgmkeuyhzubbaf.supabase.co";
 const SUPABASE_KEY = "sb_publishable_506jwPoEvILEUO7Xad7zEA_ywR6FixZ";
+const CORPORATE_WHATSAPP = "905402281201";
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   const controller = new AbortController();
@@ -574,6 +575,9 @@ export default function App() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+      }).catch(err => {
+        console.error("html2canvas hatası:", err);
+        alert("Fiş indirilirken bir hata oluştu.");
       });
     }
   };
@@ -699,7 +703,7 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
-  // MÜŞTERİ PANELİ EKRANI
+  // MÜŞTERİ PANELİ EKRANI (SEÇİM ÖZETLİ)
   if (showPortalDirectly || activeTab === 'client-portal') {
     const groupedServices = services.reduce((acc, srv) => {
       const cat = srv.category || 'Genel Alanlar';
@@ -717,6 +721,8 @@ export default function App() {
       const srv = services.find(s => s.id === sId);
       return sum + (srv ? (srv.durationMinutes || 30) * qty : 0);
     }, 0);
+
+    const activeSelectedList = Object.entries(clientSelectedItems).filter(([_, qty]) => qty > 0);
 
     return (
       <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
@@ -777,6 +783,25 @@ export default function App() {
             ))}
           </div>
 
+          {/* SEÇİM ÖZETİ KUTUSU */}
+          {activeSelectedList.length > 0 && (
+            <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl space-y-2">
+              <h4 className="text-xs font-black text-purple-900 uppercase tracking-wide">📋 Sepet / Seçim Özetiniz</h4>
+              <div className="space-y-1 divide-y divide-purple-100 text-xs">
+                {activeSelectedList.map(([sId, qty]) => {
+                  const srv = services.find(s => s.id === sId);
+                  if (!srv) return null;
+                  return (
+                    <div key={sId} className="pt-1.5 flex justify-between items-center text-slate-800 font-medium">
+                      <span>• {srv.name} (x{qty})</span>
+                      <span className="font-bold text-purple-700">{qty * srv.price} TL</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3 pt-2 border-t">
             <h3 className="text-xs font-bold text-slate-700 uppercase">İletişim Bilgileriniz</h3>
             <input type="text" placeholder="Adınız Soyadınız *" value={clientCustomerName} onChange={(e) => setClientCustomerName(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
@@ -802,14 +827,12 @@ export default function App() {
                 alert('Lütfen ad soyad ve telefon numaranızı giriniz.');
                 return;
               }
-              const chosenDetails = Object.entries(clientSelectedItems)
-                .filter(([_, qty]) => qty > 0)
-                .map(([sId, qty]) => {
-                  const srv = services.find(s => s.id === sId);
-                  return `${srv?.name} x${qty}`;
-                }).join(', ');
-              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~${calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
-              window.open(`https://wa.me/905384007070?text=${encodeURIComponent(msg)}`, '_blank');
+              const chosenDetails = activeSelectedList.map(([sId, qty]) => {
+                const srv = services.find(s => s.id === sId);
+                return `${srv?.name} x${qty}`;
+              }).join(', ');
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~{calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
+              window.open(`https://wa.me/${CORPORATE_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
           >
@@ -1068,7 +1091,7 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI - GRUPLANDIRILMIŞ CRM EKRANI */}
+        {/* YENİ İŞ KAYDI (İNDİRİM DESTEKLİ) */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1202,13 +1225,50 @@ export default function App() {
                 ))}
 
                 {selectedItems.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-slate-200 space-y-2">
+                  <div className="mt-4 pt-3 border-t border-slate-200 space-y-3">
                     <div className="flex justify-between items-center">
-                      <p className="text-xs font-bold text-slate-600">Seçilen Kalemler Özeti:</p>
+                      <p className="text-xs font-bold text-slate-600">Seçilen Kalemler ve Tutar:</p>
                       <span className="text-xs font-extrabold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200">
-                        ⏱️ Toplam Süre: ~{totalDuration} dk | Tutar: {finalTotal} TL
+                        ⏱️ Toplam Süre: ~{totalDuration} dk
                       </span>
                     </div>
+
+                    {/* İNDİRİM SEÇENEKLERİ */}
+                    <div className="bg-white p-3 rounded-xl border flex flex-col sm:flex-row items-center gap-3">
+                      <div className="w-full sm:w-auto">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">İndirim Türü</label>
+                        <select 
+                          value={discountType} 
+                          onChange={(e) => { setDiscountType(e.target.value); if(e.target.value==='none') setDiscountValue(0); }}
+                          className="border rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-50 w-full"
+                        >
+                          <option value="none">İndirimsiz</option>
+                          <option value="amount">Tutar İndirimi (TL)</option>
+                          <option value="percent">Yüzde İndirimi (%)</option>
+                        </select>
+                      </div>
+                      {discountType !== 'none' && (
+                        <div className="w-full sm:w-auto flex-1">
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            {discountType === 'amount' ? 'İndirim Tutarı (TL)' : 'İndirim Oranı (%)'}
+                          </label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={discountValue} 
+                            onChange={(e) => setDiscountValue(e.target.value)} 
+                            className="border rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-50 w-full text-rose-600"
+                            placeholder="Değer giriniz"
+                          />
+                        </div>
+                      )}
+                      <div className="text-right ml-auto">
+                        <span className="text-[10px] text-slate-400 block">Ara Toplam: {subtotal} TL</span>
+                        {discountType !== 'none' && <span className="text-[10px] text-rose-500 block">İndirim: -{calculatedDiscount} TL</span>}
+                        <span className="text-base font-black text-emerald-700">Net Tutar: {finalTotal} TL</span>
+                      </div>
+                    </div>
+
                     {selectedItems.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between bg-white p-2.5 rounded-xl border text-sm">
                         <span>{item.serviceName} x{item.qty}</span>
@@ -1269,14 +1329,16 @@ export default function App() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-500 mb-1">Vergi Numarası</label>
-                      <input type="text" placeholder="Örn: 1234567890" value={quickTaxNumber} onChange={(e) => setQuickTaxNumber(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white" />
+                      <input type="text" placeholder="Örn: 1234567890" value={quickTaxNumber} onChange={(e) => setQuickTaxNumber(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white" alt="" />
                     </div>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <textarea rows={2} placeholder="Açık Adres" value={quickAddress} onChange={(e) => setQuickAddress(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white flex-1" />
-                  <button type="submit" className="bg-emerald-600 text-white font-bold px-6 py-2 rounded-xl text-sm shadow">Müşteriyi Kaydet</button>
+                {/* ADRES KISMI AYRI SATIRDA GENİŞ ALAN */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1">Açık Adres *</label>
+                  <textarea rows={3} placeholder="İlçe, Mahalle, Cadde, Bina No, Daire..." value={quickAddress} onChange={(e) => setQuickAddress(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
                 </div>
+                <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm shadow">Müşteriyi Kaydet 🚀</button>
               </form>
               <div className="space-y-3">
                 <input type="text" placeholder="Müşteri veya Telefon Ara..." value={customerSearchQuery} onChange={(e) => setCustomerSearchQuery(e.target.value)} className="border rounded-xl px-3.5 py-2 text-xs bg-slate-50 w-full" />
@@ -1353,13 +1415,12 @@ export default function App() {
           </div>
         )}
 
-        {/* FİYATLAR & SÜRELER - SEÇENEKLİ KATEGORİ SEÇİMİ VE MÜŞTERİ PANELİ GİBİ GRUPLANDIRILMIŞ GÖRÜNÜM */}
+        {/* FİYATLAR & SÜRELER */}
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-6">
               <h2 className="text-xl font-bold text-slate-900">Hizmet, Kategori (Grup), Fiyat & Dakika Süre Yönetimi</h2>
               
-              {/* Ekleme / Güncelleme Formu */}
               <form onSubmit={handleAddOrUpdateService} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Grup / Kategori Seçin *</label>
@@ -1426,7 +1487,6 @@ export default function App() {
                 </div>
               </form>
 
-              {/* Müşteri Ekranı Tarzı Gruplandırılmış Kart Yapısı */}
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">MEVCUT HİZMET KATALOĞU (GRUPLANDIRILMIŞ)</h3>
                 
@@ -1550,7 +1610,7 @@ export default function App() {
         )}
       </main>
 
-      {/* SERVİS FİŞİ MODALI */}
+      {/* SERVİS FİŞİ MODALI (DÜZELTİLMİŞ JPEG İNDİRME) */}
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
