@@ -93,7 +93,6 @@ const DEFAULT_ON_THE_WAY_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n🚗 *PEVUNO
 const DEFAULT_COMPLETION_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO SOLUTION* profesyonel temizlik hizmetimiz ve ödeme işleminiz tamamlanmıştır.\n📋 *İş No:* [İş No]\n👷 Ekibimiz: *[Ekip]*\n💳 *Tahsil Edilen Tutar:* [Tutar] TL ([Ödeme Türü])\n\nBizi tercih ettiğiniz için teşekkür ederiz! 🧼🚿`;
 const DEFAULT_WORKER_ASSIGN_TEMPLATE = `Merhaba *[Personel Adı]*,\n\nYeni bir iş ataması yapılmıştır! 🧼\n📋 *İş No:* [İş No]\n👤 *Müşteri:* [Müşteri Adı] ([Telefon])\n📍 *Adres:* [Adres]\n📅 *Tarih/Saat:* [Tarih] - [Saat]\n🛠️ *Hizmetler:* [Hizmetler]\n💵 *Hakedişiniz:* [Hakediş] TL\n\nİyi çalışmalar!`;
 
-// Tarih Formatlayıcı (Gün.Ay.Yıl)
 const formatDateTR = (dateStr) => {
   if (!dateStr) return '--.--.----';
   const parts = dateStr.split('-');
@@ -112,6 +111,7 @@ export default function App() {
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard'); 
+  const [showPortalDirectly, setShowPortalDirectly] = useState(false);
   const [isSynced, setIsSynced] = useState(false);
   const receiptRef = useRef(null);
 
@@ -332,6 +332,7 @@ export default function App() {
     if ((inputUser === 'bahadirkuguoglu' || inputUser === 'bahadır kuğuoğlu' || inputUser === 'bahadir') && inputPass === '1201') {
       setCurrentUser({ role: 'admin', name: 'Bahadır Kuğuoğlu', username: 'bahadirkuguoglu' });
       setActiveTab('dashboard');
+      setShowPortalDirectly(false);
       return;
     }
     const matchedUser = workers.find(w => 
@@ -342,6 +343,7 @@ export default function App() {
       const cleanName = matchedUser.name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
       setCurrentUser({ role: matchedUser.role || 'worker', name: cleanName, username: matchedUser.username });
       setActiveTab(matchedUser.role === 'admin' ? 'dashboard' : 'jobs');
+      setShowPortalDirectly(false);
     } else {
       alert('Hatalı Kullanıcı Adı veya Şifre!');
     }
@@ -526,7 +528,6 @@ export default function App() {
   const completedJobsList = jobs.filter(j => isCompletedStatus(j.status));
   const activeJobsList = jobs.filter(j => !isCompletedStatus(j.status));
 
-  // Geliştirilmiş ve Mobil Uyumlu Servis Fişi Görseli İndirme (html2canvas)
   const downloadReceiptAsImage = () => {
     if (!receiptRef.current) return;
     if (!window.html2canvas) {
@@ -672,9 +673,144 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
+  // MÜŞTERİ PANELİ EKRANI (Doğrudan Açılış veya Buton İle)
+  if (showPortalDirectly || activeTab === 'client-portal') {
+    return (
+      <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
+        <div className="max-w-2xl mx-auto space-y-6 bg-white p-6 sm:p-8 rounded-3xl shadow-xl border">
+          <div className="text-center space-y-2 border-b pb-4">
+            <h2 className="text-2xl font-black text-slate-900 tracking-wider">PEVUNO SOLUTION</h2>
+            <p className="text-xs text-slate-500 font-medium">Hızlı Fiyat Hesaplama & Canlı Teklif Ekranı</p>
+            <button 
+              onClick={() => { setShowPortalDirectly(false); setActiveTab(currentUser ? 'dashboard' : null); }} 
+              className="text-xs font-bold text-emerald-600 hover:underline pt-1 inline-block"
+            >
+              🔐 Yönetici / Saha Giriş Ekranına Dön
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-slate-700 uppercase">1. Hizmet ve Paket Karşılaştırma Tablosu</h3>
+            <div className="bg-slate-50 border p-3 rounded-2xl text-center overflow-hidden">
+              <img 
+                src={portalBannerUrl} 
+                alt="Pevuno Paket Karşılaştırma" 
+                className="w-full rounded-xl shadow border object-cover max-h-96"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              <p className="text-[11px] text-slate-500 mt-2">Essential, Comfort ve Premium paketlerimizin detaylı farklarını inceleyebilirsiniz.</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-slate-700 uppercase">2. Temizletmek İstediğiniz Ürünleri Seçin</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {services.map(srv => {
+                const qty = clientSelectedItems[srv.id] || 0;
+                return (
+                  <div key={srv.id} className="flex items-center justify-between p-3 bg-slate-50 border rounded-xl">
+                    <div>
+                      <div className="font-bold text-xs text-slate-900">{srv.name}</div>
+                      <div className="text-xs text-emerald-600 font-extrabold">{srv.price} TL / {srv.unit}</div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const newQty = Math.max(0, qty - 1);
+                          setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
+                        }}
+                        className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
+                      >-</button>
+                      <span className="text-xs font-black w-5 text-center">{qty}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const newQty = qty + 1;
+                          setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
+                        }}
+                        className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
+                      >+</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-slate-700 uppercase">3. Paket Seçimi</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {['Essential', 'Comfort', 'Premium'].map(pkg => (
+                <button 
+                  key={pkg} 
+                  type="button"
+                  onClick={() => setClientSelectedPackage(pkg)}
+                  className={`py-3 px-2 rounded-xl text-xs font-bold border transition ${clientSelectedPackage === pkg ? 'bg-emerald-600 text-white border-emerald-600 shadow' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+                >
+                  {pkg === 'Comfort' ? '⭐ Comfort' : pkg === 'Essential' ? '🌿 Essential' : '👑 Premium'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2 border-t">
+            <h3 className="text-xs font-bold text-slate-700 uppercase">4. İletişim Bilgileriniz</h3>
+            <input type="text" placeholder="Adınız Soyadınız *" value={clientCustomerName} onChange={(e) => setClientCustomerName(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
+            <input type="text" placeholder="Telefon Numaranız *" value={clientCustomerPhone} onChange={(e) => setClientCustomerPhone(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
+            <textarea rows={3} placeholder="Açık Adresiniz (İlçe, Mahalle, Sokak)..." value={clientCustomerAddress} onChange={(e) => setClientCustomerAddress(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
+          </div>
+
+          {(() => {
+            const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
+              const srv = services.find(s => s.id === sId);
+              return sum + (srv ? srv.price * qty : 0);
+            }, 0);
+            return (
+              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex justify-between items-center">
+                <div>
+                  <span className="text-xs text-slate-600 font-bold block">Seçilen Paket: <strong className="text-emerald-700">{clientSelectedPackage}</strong></span>
+                  <span className="text-sm font-black text-slate-900">Hesaplanan Toplam Tutar</span>
+                </div>
+                <div className="text-xl font-black text-emerald-700">{calcSubTotal} TL</div>
+              </div>
+            );
+          })()}
+
+          <button 
+            type="button"
+            onClick={() => {
+              if (!clientCustomerName || !clientCustomerPhone) {
+                alert('Lütfen ad soyad ve telefon numaranızı giriniz.');
+                return;
+              }
+              const chosenDetails = Object.entries(clientSelectedItems)
+                .filter(([_, qty]) => qty > 0)
+                .map(([sId, qty]) => {
+                  const srv = services.find(s => s.id === sId);
+                  return `${srv?.name} x${qty}`;
+                }).join(', ');
+              const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
+                const srv = services.find(s => s.id === sId);
+                return sum + (srv ? srv.price * qty : 0);
+              }, 0);
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n📦 Seçilen Paket: ${clientSelectedPackage}\n🛠️ Hizmetler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n\nRandevu oluşturmak istiyorum.`;
+              window.open(`https://wa.me/905384007070?text=${encodeURIComponent(msg)}`, '_blank');
+            }}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>WhatsApp ile Teklifi Gönder 🚀</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // GİRİŞ EKRANI
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl space-y-6">
           <div className="text-center space-y-3">
             <h1 className="text-2xl font-black text-slate-900 tracking-wider">PEVUNO SOLUTION</h1>
@@ -692,7 +828,10 @@ export default function App() {
             <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition">Sisteme Giriş Yap 🚀</button>
           </form>
           <div className="pt-4 border-t text-center">
-            <button onClick={() => setActiveTab('client-portal')} className="text-xs font-bold text-emerald-600 hover:underline">
+            <button 
+              onClick={() => setShowPortalDirectly(true)} 
+              className="text-xs font-bold text-emerald-600 hover:underline"
+            >
               👉 Müşteri Fiyat Hesaplama Paneli (Şifresiz)
             </button>
           </div>
@@ -760,6 +899,10 @@ export default function App() {
                 <button onClick={() => setActiveTab('reminders')} className={`px-3 py-2.5 flex items-center space-x-1.5 border-b-2 font-medium whitespace-nowrap text-xs transition ${activeTab === 'reminders' ? 'border-emerald-400 text-emerald-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                   <RefreshCw className="w-4 h-4" />
                   <span>Hatırlatıcılar & Şablonlar ({reminderEligibleCustomers.length})</span>
+                </button>
+                <button onClick={() => setShowPortalDirectly(true)} className="px-3 py-2.5 flex items-center space-x-1.5 border-b-2 border-transparent text-emerald-400 hover:text-emerald-300 font-bold whitespace-nowrap text-xs">
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Müşteri Paneli Önizleme</span>
                 </button>
               </>
             )}
@@ -979,7 +1122,6 @@ export default function App() {
                   </div>
                 </div>
                 
-                {/* GENİŞ KULLANIŞLI MOBİL ADRES ALANI */}
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-slate-600 mb-1">Açık Adres (Telefonda Rahat Yazım) *</label>
                   <textarea rows={4} required placeholder="İlçe, Mahalle, Cadde, Bina No, Daire..." value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-white" />
@@ -1116,7 +1258,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ÇALIŞAN TELEFON NUMARALARI YÖNETİMİ */}
         {activeTab === 'workers' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
@@ -1184,7 +1325,6 @@ export default function App() {
           </div>
         )}
 
-        {/* MÜŞTERİ PANELİ GÖRSEL DÜZENLEME VE ŞABLON DÜZENLEME ALANI */}
         {activeTab === 'reminders' && currentUser.role === 'admin' && (
           <div className="space-y-8 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-3">
@@ -1262,136 +1402,9 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {/* DİNAMİK CANLI FİYATLI MÜŞTERİ HESAPLAMA PANELİ */}
-        {activeTab === 'client-portal' && (
-          <div className="max-w-2xl mx-auto space-y-6 bg-white p-6 sm:p-8 rounded-3xl shadow-xl border">
-            <div className="text-center space-y-2 border-b pb-4">
-              <h2 className="text-2xl font-black text-slate-900 tracking-wider">PEVUNO SOLUTION</h2>
-              <p className="text-xs text-slate-500 font-medium">Hızlı Fiyat Hesaplama & Canlı Teklif Ekranı</p>
-              <button onClick={() => setActiveTab(null)} className="text-xs font-bold text-emerald-600 hover:underline pt-1 inline-block">
-                🔐 Yönetici / Saha Giriş Ekranına Dön
-              </button>
-            </div>
-            
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-700 uppercase">1. Hizmet ve Paket Karşılaştırma Tablosu</h3>
-              <div className="bg-slate-50 border p-3 rounded-2xl text-center overflow-hidden">
-                <img 
-                  src={portalBannerUrl} 
-                  alt="Pevuno Paket Karşılaştırma" 
-                  className="w-full rounded-xl shadow border object-cover max-h-96"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-                <p className="text-[11px] text-slate-500 mt-2">Essential, Comfort ve Premium paketlerimizin detaylı farklarını inceleyebilirsiniz.</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-700 uppercase">2. Temizletmek İstediğiniz Ürünleri Seçin</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {services.map(srv => {
-                  const qty = clientSelectedItems[srv.id] || 0;
-                  return (
-                    <div key={srv.id} className="flex items-center justify-between p-3 bg-slate-50 border rounded-xl">
-                      <div>
-                        <div className="font-bold text-xs text-slate-900">{srv.name}</div>
-                        <div className="text-xs text-emerald-600 font-extrabold">{srv.price} TL / {srv.unit}</div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            const newQty = Math.max(0, qty - 1);
-                            setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
-                          }}
-                          className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
-                        >-</button>
-                        <span className="text-xs font-black w-5 text-center">{qty}</span>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            const newQty = qty + 1;
-                            setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
-                          }}
-                          className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
-                        >+</button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-700 uppercase">3. Paket Seçimi</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {['Essential', 'Comfort', 'Premium'].map(pkg => (
-                  <button 
-                    key={pkg} 
-                    type="button"
-                    onClick={() => setClientSelectedPackage(pkg)}
-                    className={`py-3 px-2 rounded-xl text-xs font-bold border transition ${clientSelectedPackage === pkg ? 'bg-emerald-600 text-white border-emerald-600 shadow' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
-                  >
-                    {pkg === 'Comfort' ? '⭐ Comfort' : pkg === 'Essential' ? '🌿 Essential' : '👑 Premium'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2 border-t">
-              <h3 className="text-xs font-bold text-slate-700 uppercase">4. İletişim Bilgileriniz</h3>
-              <input type="text" placeholder="Adınız Soyadınız *" value={clientCustomerName} onChange={(e) => setClientCustomerName(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
-              <input type="text" placeholder="Telefon Numaranız *" value={clientCustomerPhone} onChange={(e) => setClientCustomerPhone(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
-              <textarea rows={3} placeholder="Açık Adresiniz (İlçe, Mahalle, Sokak)..." value={clientCustomerAddress} onChange={(e) => setClientCustomerAddress(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
-            </div>
-
-            {(() => {
-              const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
-                const srv = services.find(s => s.id === sId);
-                return sum + (srv ? srv.price * qty : 0);
-              }, 0);
-              return (
-                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex justify-between items-center">
-                  <div>
-                    <span className="text-xs text-slate-600 font-bold block">Seçilen Paket: <strong className="text-emerald-700">{clientSelectedPackage}</strong></span>
-                    <span className="text-sm font-black text-slate-900">Hesaplanan Toplam Tutar</span>
-                  </div>
-                  <div className="text-xl font-black text-emerald-700">{calcSubTotal} TL</div>
-                </div>
-              );
-            })()}
-
-            <button 
-              type="button"
-              onClick={() => {
-                if (!clientCustomerName || !clientCustomerPhone) {
-                  alert('Lütfen ad soyad ve telefon numaranızı giriniz.');
-                  return;
-                }
-                const chosenDetails = Object.entries(clientSelectedItems)
-                  .filter(([_, qty]) => qty > 0)
-                  .map(([sId, qty]) => {
-                    const srv = services.find(s => s.id === sId);
-                    return `${srv?.name} x${qty}`;
-                  }).join(', ');
-                const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
-                  const srv = services.find(s => s.id === sId);
-                  return sum + (srv ? srv.price * qty : 0);
-                }, 0);
-                const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n📦 Seçilen Paket: ${clientSelectedPackage}\n🛠️ Hizmetler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n\nRandevu oluşturmak istiyorum.`;
-                window.open(`https://wa.me/905384007070?text=${encodeURIComponent(msg)}`, '_blank');
-              }}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>WhatsApp ile Teklifi Gönder 🚀</span>
-            </button>
-          </div>
-        )}
       </main>
 
-      {/* SERVİS FİŞİ VE TELEFONA İNDİRME GÖRSEL MODALI */}
+      {/* SERVİS FİŞİ MODALI */}
       {selectedJobForReceipt && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
@@ -1442,7 +1455,6 @@ export default function App() {
   );
 }
 
-{/* KRONOLOJİK SIRALI SAHA İŞ KARTI BİLEŞENİ */}
 function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, currentUser, handleSaveJobPaymentAndComplete, sendWhatsAppMessage, setSelectedJobForReceipt }) {
   const [payRows, setPayRows] = useState(job.paymentDetails && job.paymentDetails.length > 0 ? job.paymentDetails : [{ method: 'IBAN', amount: job.totalAmount }]);
   
@@ -1465,8 +1477,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-      
-      {/* 1. MÜŞTERİ BAŞLIĞI VE NUMARASI */}
       <div className="flex justify-between items-start border-b border-slate-100 pb-3">
         <div>
           <span className="bg-slate-900 text-emerald-400 font-extrabold text-[11px] px-2.5 py-1 rounded-lg inline-block mb-1">
@@ -1477,7 +1487,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
         </div>
       </div>
 
-      {/* 2. TARİH VE SAAT BİLGİLERİ (GÜN.AY.YIL FORMATLI) */}
       <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-800 space-y-1 font-bold">
         <div className="flex justify-between items-center">
           <span>📅 Tarih: {formattedDate}</span>
@@ -1487,7 +1496,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
         <p className="text-slate-600 font-normal pt-1 border-t border-emerald-200">📍 Adres: {job.address}</p>
       </div>
 
-      {/* 3. İŞLEM YAPILACAK ÜRÜNLER */}
       <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
         <span className="font-bold text-slate-700 block border-b pb-1 uppercase">İşlem Yapılacak Ürünler</span>
         {job.items?.map((item, iIdx) => (
@@ -1498,11 +1506,9 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
         ))}
       </div>
 
-      {/* KRONOLOJİK ADIMLAR ALANI */}
       <div className="space-y-3 pt-2 border-t">
         <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Saha Operasyon Adımları</span>
         
-        {/* 1. ADIM: MÜŞTERİYE RANDEVU WP */}
         {currentUser.role === 'admin' && (
           <button 
             onClick={() => sendWhatsAppMessage('appointment', job)} 
@@ -1513,7 +1519,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           </button>
         )}
 
-        {/* 2. ADIM: ÇALIŞANLARA WP GÖNDER */}
         {currentUser.role === 'admin' && job.assignedWorkers && job.assignedWorkers.length > 0 && (
           <div className="bg-purple-50 p-3 rounded-xl border border-purple-200 space-y-2">
             <span className="text-[11px] font-bold text-purple-900 block">2. Adım: Çalışanlara İş Detayını Gönder (WP)</span>
@@ -1532,7 +1537,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           </div>
         )}
 
-        {/* 3. ADIM: YOLA ÇIKILDI WP */}
         {currentUser.role === 'admin' && (
           <button 
             onClick={() => sendWhatsAppMessage('ontheway', job)} 
@@ -1543,7 +1547,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           </button>
         )}
 
-        {/* 4. ADIM: SAHA ÖDEME GİRİŞİ (ELDEN / IBAN) */}
         <div className="bg-slate-100 p-3.5 rounded-xl text-xs space-y-2 border">
           <div className="flex justify-between items-center font-bold text-slate-800 border-b pb-1.5">
             <span>4. Adım: Saha Ödeme Girişi (Toplam: {job.totalAmount} TL)</span>
@@ -1593,7 +1596,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           </div>
         )}
 
-        {/* 5. ADIM: SERVİS FİŞİ İŞLEMLERİ */}
         <div className="grid grid-cols-2 gap-2">
           <button 
             onClick={() => setSelectedJobForReceipt(job)} 
@@ -1611,7 +1613,6 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           </button>
         </div>
 
-        {/* 6. ADIM: İŞLEM TAMAMLANTI & ARŞİVLE */}
         <button 
           onClick={() => handleSaveJobPaymentAndComplete(job.id, payRows, true)} 
           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-3 rounded-xl shadow-lg flex items-center justify-center space-x-2 transition"
