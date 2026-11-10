@@ -68,12 +68,13 @@ async function saveSupabaseData(key, value) {
 }
 
 const DEFAULT_SERVICES = [
-  { id: '1', name: 'Koltuk Yıkama (Standart)', price: 1200, unit: 'adet', durationMinutes: 45 },
-  { id: '2', name: 'L Koltuk Yıkama', price: 1500, unit: 'adet', durationMinutes: 60 },
-  { id: '3', name: 'Yatak Yıkama (Çift Kişilik)', price: 900, unit: 'adet', durationMinutes: 40 },
-  { id: '4', name: 'Halı Yıkama', price: 120, unit: 'm²', durationMinutes: 30 },
-  { id: '5', name: 'Stor Perde Yıkama', price: 150, unit: 'm²', durationMinutes: 20 },
-  { id: '6', name: 'Sandalye Yıkama', price: 150, unit: 'adet', durationMinutes: 15 },
+  { id: '1', category: 'Çocuk Odası', name: 'Tek Kişilik Yatak Yıkama', price: 900, unit: 'adet', durationMinutes: 40 },
+  { id: '2', category: 'Çocuk Odası', name: 'Çocuk Koltuğu / Sandalye', price: 150, unit: 'adet', durationMinutes: 15 },
+  { id: '3', category: 'Salon', name: 'Koltuk Takımı (3+3+1+1)', price: 2400, unit: 'takım', durationMinutes: 90 },
+  { id: '4', category: 'Salon', name: 'L Koltuk Yıkama', price: 1500, unit: 'adet', durationMinutes: 60 },
+  { id: '5', category: 'Yatak Odası', name: 'Çift Kişilik Yatak Yıkama', price: 1200, unit: 'adet', durationMinutes: 50 },
+  { id: '6', category: 'Genel Alanlar', name: 'Halı Yıkama', price: 120, unit: 'm²', durationMinutes: 30 },
+  { id: '7', category: 'Genel Alanlar', name: 'Stor Perde Yıkama', price: 150, unit: 'm²', durationMinutes: 20 },
 ];
 
 const DEFAULT_PORTAL_BANNER = "https://esmmpztgmkeuyhzubbaf.supabase.co/storage/v1/object/public/assets/image.png";
@@ -155,9 +156,8 @@ export default function App() {
   const [workerAssignTemplate, setWorkerAssignTemplate] = useState(() => localStorage.getItem('pevuno_assign_template') || DEFAULT_WORKER_ASSIGN_TEMPLATE);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
 
-  // Müşteri Paneli State'leri
+  // Müşteri Paneli State'leri (Paket alanı kaldırıldı, sadece gruplandırılmış hizmetler ve iletişim kaldı)
   const [clientSelectedItems, setClientSelectedItems] = useState({});
-  const [clientSelectedPackage, setClientSelectedPackage] = useState('Comfort');
   const [clientCustomerName, setClientCustomerName] = useState('');
   const [clientCustomerPhone, setClientCustomerPhone] = useState('');
   const [clientCustomerAddress, setClientCustomerAddress] = useState('');
@@ -243,7 +243,7 @@ export default function App() {
   const [newWorkerPin, setNewWorkerPin] = useState('');
   const [newWorkerRole, setNewWorkerRole] = useState('worker');
   const [newWorkerPhone, setNewWorkerPhone] = useState('');
-  const [newService, setNewService] = useState({ name: '', price: '', unit: 'adet', durationMinutes: 30 });
+  const [newService, setNewService] = useState({ category: 'Genel Alanlar', name: '', price: '', unit: 'adet', durationMinutes: 30 });
   const [editingServiceId, setEditingServiceId] = useState(null);
   const [selectedJobForReceipt, setSelectedJobForReceipt] = useState(null);
 
@@ -352,7 +352,7 @@ export default function App() {
   const handleAddWorker = (e) => {
     e.preventDefault();
     if (!newWorkerName || !newWorkerPin || !newWorkerUsername || !newWorkerPhone) {
-      alert('Lütfen tüm bilgileri (kullanıcı adı, isim, şifre ve telefon) doldurunuz.');
+      alert('Lütfen tüm bilgileri doldurunuz.');
       return;
     }
     const cleanUser = newWorkerUsername.trim().toLowerCase();
@@ -415,12 +415,12 @@ export default function App() {
     if (!newService.name || !newService.price) return;
     const duration = Number(newService.durationMinutes) || 30;
     if (editingServiceId) {
-      updateServices(services.map(s => s.id === editingServiceId ? { ...s, name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration } : s));
+      updateServices(services.map(s => s.id === editingServiceId ? { ...s, category: newService.category, name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration } : s));
       setEditingServiceId(null);
     } else {
-      updateServices([...services, { id: Date.now().toString(), name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration }]);
+      updateServices([...services, { id: Date.now().toString(), category: newService.category || 'Genel Alanlar', name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration }]);
     }
-    setNewService({ name: '', price: '', unit: 'adet', durationMinutes: 30 });
+    setNewService({ category: 'Genel Alanlar', name: '', price: '', unit: 'adet', durationMinutes: 30 });
   };
 
   const handleCreateJob = (e) => {
@@ -673,8 +673,16 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
-  // MÜŞTERİ PANELİ EKRANI (Doğrudan Açılış veya Buton İle)
+  // MÜŞTERİ PANELİ EKRANI (Gruplandırılmış ve paket alanı kaldırılmış sade yapı)
   if (showPortalDirectly || activeTab === 'client-portal') {
+    // Hizmetleri kategorilerine göre grupla
+    const groupedServices = services.reduce((acc, srv) => {
+      const cat = srv.category || 'Genel Alanlar';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(srv);
+      return acc;
+    }, {});
+
     return (
       <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
         <div className="max-w-2xl mx-auto space-y-6 bg-white p-6 sm:p-8 rounded-3xl shadow-xl border">
@@ -689,73 +697,53 @@ export default function App() {
             </button>
           </div>
           
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-700 uppercase">1. Hizmet ve Paket Karşılaştırma Tablosu</h3>
-            <div className="bg-slate-50 border p-3 rounded-2xl text-center overflow-hidden">
-              <img 
-                src={portalBannerUrl} 
-                alt="Pevuno Paket Karşılaştırma" 
-                className="w-full rounded-xl shadow border object-cover max-h-96"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-              <p className="text-[11px] text-slate-500 mt-2">Essential, Comfort ve Premium paketlerimizin detaylı farklarını inceleyebilirsiniz.</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-700 uppercase">2. Temizletmek İstediğiniz Ürünleri Seçin</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {services.map(srv => {
-                const qty = clientSelectedItems[srv.id] || 0;
-                return (
-                  <div key={srv.id} className="flex items-center justify-between p-3 bg-slate-50 border rounded-xl">
-                    <div>
-                      <div className="font-bold text-xs text-slate-900">{srv.name}</div>
-                      <div className="text-xs text-emerald-600 font-extrabold">{srv.price} TL / {srv.unit}</div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          const newQty = Math.max(0, qty - 1);
-                          setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
-                        }}
-                        className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
-                      >-</button>
-                      <span className="text-xs font-black w-5 text-center">{qty}</span>
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          const newQty = qty + 1;
-                          setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
-                        }}
-                        className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
-                      >+</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-700 uppercase">3. Paket Seçimi</h3>
-            <div className="grid grid-cols-3 gap-2">
-              {['Essential', 'Comfort', 'Premium'].map(pkg => (
-                <button 
-                  key={pkg} 
-                  type="button"
-                  onClick={() => setClientSelectedPackage(pkg)}
-                  className={`py-3 px-2 rounded-xl text-xs font-bold border transition ${clientSelectedPackage === pkg ? 'bg-emerald-600 text-white border-emerald-600 shadow' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
-                >
-                  {pkg === 'Comfort' ? '⭐ Comfort' : pkg === 'Essential' ? '🌿 Essential' : '👑 Premium'}
-                </button>
-              ))}
-            </div>
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-700 uppercase">Temizlik Alanları ve Ürün Seçimi</h3>
+            
+            {/* Gruplandırılmış Alanlar */}
+            {Object.entries(groupedServices).map(([categoryName, catServices]) => (
+              <div key={categoryName} className="bg-slate-50 border rounded-2xl p-4 space-y-3">
+                <h4 className="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center justify-between">
+                  <span>🏠 {categoryName}</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {catServices.map(srv => {
+                    const qty = clientSelectedItems[srv.id] || 0;
+                    return (
+                      <div key={srv.id} className="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm">
+                        <div>
+                          <div className="font-bold text-xs text-slate-900">{srv.name}</div>
+                          <div className="text-xs text-emerald-600 font-extrabold">{srv.price} TL / {srv.unit}</div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const newQty = Math.max(0, qty - 1);
+                              setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
+                            }}
+                            className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
+                          >-</button>
+                          <span className="text-xs font-black w-5 text-center">{qty}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const newQty = qty + 1;
+                              setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
+                            }}
+                            className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
+                          >+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="space-y-3 pt-2 border-t">
-            <h3 className="text-xs font-bold text-slate-700 uppercase">4. İletişim Bilgileriniz</h3>
+            <h3 className="text-xs font-bold text-slate-700 uppercase">İletişim Bilgileriniz</h3>
             <input type="text" placeholder="Adınız Soyadınız *" value={clientCustomerName} onChange={(e) => setClientCustomerName(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
             <input type="text" placeholder="Telefon Numaranız *" value={clientCustomerPhone} onChange={(e) => setClientCustomerPhone(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
             <textarea rows={3} placeholder="Açık Adresiniz (İlçe, Mahalle, Sokak)..." value={clientCustomerAddress} onChange={(e) => setClientCustomerAddress(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
@@ -769,7 +757,7 @@ export default function App() {
             return (
               <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex justify-between items-center">
                 <div>
-                  <span className="text-xs text-slate-600 font-bold block">Seçilen Paket: <strong className="text-emerald-700">{clientSelectedPackage}</strong></span>
+                  <span className="text-xs text-slate-600 font-bold block">Pevuno Solution Profesyonel Hizmet</span>
                   <span className="text-sm font-black text-slate-900">Hesaplanan Toplam Tutar</span>
                 </div>
                 <div className="text-xl font-black text-emerald-700">{calcSubTotal} TL</div>
@@ -794,7 +782,7 @@ export default function App() {
                 const srv = services.find(s => s.id === sId);
                 return sum + (srv ? srv.price * qty : 0);
               }, 0);
-              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n📦 Seçilen Paket: ${clientSelectedPackage}\n🛠️ Hizmetler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n\nRandevu oluşturmak istiyorum.`;
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n\nRandevu oluşturmak istiyorum.`;
               window.open(`https://wa.me/905384007070?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
@@ -979,7 +967,6 @@ export default function App() {
           </div>
         )}
 
-        {/* AKTİF İŞLER KRONOLOJİK SIRALI SAHA AKIŞI */}
         {activeTab === 'jobs' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
@@ -1046,7 +1033,6 @@ export default function App() {
           </div>
         )}
 
-        {/* GENİŞ MOBİL ADRES KUTULU YENİ İŞ KAYDI */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1123,7 +1109,7 @@ export default function App() {
                 </div>
                 
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Açık Adres (Telefonda Rahat Yazım) *</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Açık Adres *</label>
                   <textarea rows={4} required placeholder="İlçe, Mahalle, Cadde, Bina No, Daire..." value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-white" />
                 </div>
               </div>
@@ -1239,9 +1225,6 @@ export default function App() {
                           </h4>
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">📍 {cust.address}</p>
-                        {cust.customerType === 'kurumsal' && (cust.taxOffice || cust.taxNumber) && (
-                          <p className="text-[11px] text-blue-700 font-semibold mt-0.5">V.D: {cust.taxOffice || '-'} | V.N: {cust.taxNumber || '-'}</p>
-                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <button onClick={() => toggleCustomerKvkk(cust.id)} className={`px-3 py-1 rounded-lg text-xs font-bold border transition ${cust.kvkk ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
@@ -1293,11 +1276,12 @@ export default function App() {
         {activeTab === 'catalog' && currentUser.role === 'admin' && (
           <div className="space-y-6 max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Hizmet, Fiyat & Dakika Süre Yönetimi</h2>
-              <form onSubmit={handleAddOrUpdateService} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border">
+              <h2 className="text-xl font-bold text-slate-900">Hizmet, Kategori, Fiyat & Dakika Süre Yönetimi</h2>
+              <form onSubmit={handleAddOrUpdateService} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-xl border">
+                <input type="text" required placeholder="Grup / Kategori (Örn: Çocuk Odası)" value={newService.category} onChange={(e) => setNewService({ ...newService, category: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <input type="text" required placeholder="Hizmet Adı" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <input type="number" required placeholder="Fiyat (TL)" value={newService.price} onChange={(e) => setNewService({ ...newService, price: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
-                <input type="number" required placeholder="Süre (Dakika)" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
+                <input type="number" required placeholder="Süre (dk)" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} className="border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-sm shadow">{editingServiceId ? 'Güncelle' : 'Ekle'}</button>
               </form>
               <div className="divide-y border rounded-xl overflow-hidden">
@@ -1309,13 +1293,14 @@ export default function App() {
                         <button disabled={index === services.length - 1} onClick={() => moveService(index, 'down')} className="p-1 text-slate-400 hover:text-slate-800 disabled:opacity-20"><ArrowDown className="w-4 h-4" /></button>
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-800 text-sm">{srv.name}</h4>
+                        <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">{srv.category || 'Genel Alanlar'}</span>
+                        <h4 className="font-bold text-slate-800 text-sm mt-0.5">{srv.name}</h4>
                         <span className="text-xs text-purple-700 font-semibold">⏱️ Süre: {srv.durationMinutes || 30} dk | Birim: {srv.unit}</span>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3">
                       <span className="font-extrabold text-slate-900">{srv.price} TL</span>
-                      <button onClick={() => { setEditingServiceId(srv.id); setNewService({ name: srv.name, price: srv.price, unit: srv.unit || 'adet', durationMinutes: srv.durationMinutes || 30 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Edit3 className="w-4 h-4" /></button>
+                      <button onClick={() => { setEditingServiceId(srv.id); setNewService({ category: srv.category || 'Genel Alanlar', name: srv.name, price: srv.price, unit: srv.unit || 'adet', durationMinutes: srv.durationMinutes || 30 }); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Edit3 className="w-4 h-4" /></button>
                       <button onClick={() => updateServices(services.filter(s => s.id !== srv.id))} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
@@ -1330,9 +1315,9 @@ export default function App() {
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-3">
               <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
                 <Image className="w-4 h-4 text-emerald-600" />
-                <span>Müşteri Paneli Karşılaştırma Görsel URL Yönetimi</span>
+                <span>Müşteri Paneli Banner / Görsel URL Yönetimi</span>
               </h3>
-              <p className="text-xs text-slate-500">Müşteri Fiyat Hesaplama Paneli'nde görünecek olan paket broşürünün resim adresini (URL) buradan değiştirebilirsiniz.</p>
+              <p className="text-xs text-slate-500">Bilgisayarınızdaki resmi imgbb.com gibi bir siteye yükleyip aldığınız doğrudan linki (URL) buraya yapıştırabilirsiniz.</p>
               <form onSubmit={(e) => handleSaveTemplates(e, 'banner')} className="flex gap-2">
                 <input type="text" value={tempBannerInput} onChange={(e) => setTempBannerInput(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50 flex-1" placeholder="https://..." />
                 <button type="submit" className="bg-emerald-600 text-white font-bold px-4 py-2 rounded-xl text-xs shadow">Görsel URL Kaydet</button>
