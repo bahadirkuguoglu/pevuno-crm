@@ -176,6 +176,11 @@ export default function App() {
   const [adminSelectedVariants, setAdminSelectedVariants] = useState({});
   const [adminSelectedItems, setAdminSelectedItems] = useState({});
 
+  // ZAMAN / TARİH DEĞİŞKENLERİ EN ÜSTE TAŞINDI (ReferenceError Hata Çözümü)
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
   const syncWithCloud = async () => {
     setIsSynced(false);
     try {
@@ -325,7 +330,6 @@ export default function App() {
     return `${endHours}:${endMins}`;
   };
 
-  // Yönetici yeni iş kaydı için seçilen ürünlerin toplam ve süre hesaplamaları
   const groupedAdminServicesByBaseName = services.reduce((acc, srv) => {
     const cat = srv.category || 'Genel Alanlar';
     if (!acc[cat]) acc[cat] = {};
@@ -628,7 +632,6 @@ export default function App() {
     return acc + (wDetail ? Number(wDetail.amount) || 0 : 0);
   }, 0);
 
-  // IPHONE ANA EKRAN UYGULAMA (PWA) MODUNA ÖZEL Fİş AÇMA VE GERİ DÖN TUŞU EKLENMİŞ FONKSİYON
   const downloadReceiptAsImage = () => {
     if (!receiptRef.current) return;
     
@@ -1188,7 +1191,6 @@ export default function App() {
               <p className="text-xs text-slate-300">Saha Personeli Performans ve Kazanç Paneli</p>
             </div>
 
-            {/* Saha Çalışanı Kazanç Kartları */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Bu Ay Kazancım</span>
@@ -1308,7 +1310,7 @@ export default function App() {
           </div>
         )}
 
-        {/* YENİ İŞ KAYDI EKRANI (MÜŞTERİ PANELİNDEKİ SADE VE ŞIK PAKET SEÇİMLİ YAPIYA UYARLANDI) */}
+        {/* YENİ İŞ KAYDI EKRANI */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1390,7 +1392,6 @@ export default function App() {
                 </div>
               </div>
               
-              {/* YENİ ŞIK VE SADE PAKET SEÇİMLİ ÜRÜN KARTLARI (MÜŞTERİ PANELİYLE BİREBİR AYNI) */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">TEMİZLİK ALANLARI VE ÜRÜN SEÇİMİ</label>
                 
