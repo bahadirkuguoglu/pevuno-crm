@@ -172,8 +172,8 @@ export default function App() {
   const [clientCustomerPhone, setClientCustomerPhone] = useState('');
   const [clientCustomerAddress, setClientCustomerAddress] = useState('');
   
-  // Yeni eklenen state: Gruplandırılmış temizlik kartlarında seçilen paketler (örn: { "Çocuk Yatak Odası_Tek Kişilik Yatak Yıkama": "Comfort" })
   const [clientSelectedVariants, setClientSelectedVariants] = useState({});
+  const [adminSelectedVariants, setAdminSelectedVariants] = useState({});
 
   const syncWithCloud = async () => {
     setIsSynced(false);
@@ -731,16 +731,13 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
+  const getCleanServiceName = (fullName) => {
+    if (!fullName) return '';
+    return fullName.replace(/^(Essential|Comfort|Premium|Ekonomik|Standart|Lüks)\s*\|\s*/i, '').trim();
+  };
+
   // MÜŞTERİ PANELİ EKRANI (PAKET SEÇİMLİ SADELEŞTİRİLMİŞ YAPI)
   if (showPortalDirectly || activeTab === 'client-portal') {
-    // Hizmetleri temel adlarına göre gruplayalım (Örn: "Tek Kişilik Yatak Yıkama")
-    // İsimlerin içinde "Essential | ", "Comfort | ", "Premium | " gibi ifadeler varsa temizleyip ana ürün adı elde ediyoruz.
-    const getCleanServiceName = (fullName) => {
-      if (!fullName) return '';
-      return fullName.replace(/^(Essential|Comfort|Premium|Ekonomik|Standart|Lüks)\s*\|\s*/i, '').trim();
-    };
-
-    // Kategorilere göre gruplama ve ürünleri temel adına göre birleştirme
     const groupedServicesByBaseName = services.reduce((acc, srv) => {
       const cat = srv.category || 'Genel Alanlar';
       if (!acc[cat]) acc[cat] = {};
@@ -749,11 +746,10 @@ export default function App() {
       if (!acc[cat][baseName]) {
         acc[cat][baseName] = [];
       }
-      acc[cat][baseName].push(srv); // Her varyantı (Essential, Comfort vb.) içine atıyoruz
+      acc[cat][baseName].push(srv);
       return acc;
     }, {});
 
-    // Sepet toplamı hesaplama (clientSelectedItems ve clientSelectedVariants dikkate alınarak)
     let calcSubTotal = 0;
     let calcTotalDuration = 0;
     const activeSelectedList = [];
@@ -849,7 +845,6 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Paket / Kalite Seçim Butonları (Essential, Comfort, Premium vb.) */}
                         {variants.length > 1 && (
                           <div className="pt-2 border-t flex flex-wrap gap-1.5 items-center">
                             <span className="text-[10px] font-bold text-slate-500 uppercase">Paket:</span>
@@ -977,6 +972,15 @@ export default function App() {
     const cat = srv.category || 'Genel Alanlar';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(srv);
+    return acc;
+  }, {});
+
+  const groupedAdminServicesByBaseName = services.reduce((acc, srv) => {
+    const cat = srv.category || 'Genel Alanlar';
+    if (!acc[cat]) acc[cat] = {};
+    const baseName = getCleanServiceName(srv.name);
+    if (!acc[cat][baseName]) acc[cat][baseName] = [];
+    acc[cat][baseName].push(srv);
     return acc;
   }, {});
 
@@ -1263,19 +1267,11 @@ export default function App() {
                 </div>
               </div>
               
+              {/* YÖNETİCİ YENİ İŞ KAYDI - SADELEŞTİRİLMİŞ PAKET SEÇİMLİ ÜRÜN KARTLARI */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">TEMİZLİK ALANLARI VE ÜRÜN SEÇİMİ</label>
                 
-                {Object.entries(
-                  services.reduce((acc, srv) => {
-                    const cat = srv.category || 'Genel Alanlar';
-                    if (!acc[cat]) acc[cat] = {};
-                    const baseName = srv.name.replace(/^(Essential|Comfort|Premium|Ekonomik|Standart|Lüks)\s*\|\s*/i, '').trim();
-                    if (!acc[cat][baseName]) acc[cat][baseName] = [];
-                    acc[cat][baseName].push(srv);
-                    return acc;
-                  }, {})
-                ).map(([catName, baseServicesMap]) => (
+                {Object.entries(groupedAdminServicesByBaseName).map(([catName, baseServicesMap]) => (
                   <div key={catName} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
                     <h4 className="font-extrabold text-xs text-slate-900 border-b pb-1.5 flex items-center space-x-1.5">
                       <span>🏠 {catName}</span>
@@ -1283,10 +1279,11 @@ export default function App() {
                     <div className="grid grid-cols-1 gap-2">
                       {Object.entries(baseServicesMap).map(([baseName, variants]) => {
                         const baseKey = `${catName}__${baseName}`;
-                        const existingItem = selectedItems.find(i => i.baseKey === baseKey || i.serviceName.includes(baseName));
-                        const qty = existingItem ? existingItem.qty : 0;
-                        const currentVariantName = existingItem ? existingItem.serviceName : variants[0]?.name;
+                        const currentVariantName = adminSelectedVariants[baseKey] || variants[0]?.name;
                         const activeVariant = variants.find(v => v.name === currentVariantName) || variants[0];
+                        
+                        const existingItem = selectedItems.find(i => i.serviceId === activeVariant.id);
+                        const qty = existingItem ? existingItem.qty : 0;
 
                         return (
                           <div key={baseKey} className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
@@ -1333,12 +1330,13 @@ export default function App() {
                                       key={v.id}
                                       type="button"
                                       onClick={() => {
+                                        setAdminSelectedVariants({ ...adminSelectedVariants, [baseKey]: v.name });
                                         if (existingItem) {
-                                          setSelectedItems(selectedItems.map(i => i.baseKey === baseKey ? { ...i, serviceId: v.id, serviceName: v.name, unitPrice: v.price, durationMinutes: v.durationMinutes || 30 } : i));
+                                          setSelectedItems(selectedItems.map(i => i.serviceId === activeVariant.id ? { ...i, serviceId: v.id, serviceName: v.name, unitPrice: v.price, durationMinutes: v.durationMinutes || 30 } : i));
                                         }
                                       }}
                                       className={`text-[10px] font-bold px-2 py-0.5 rounded border transition ${
-                                        isSelected ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'
+                                        isSelected ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                                       }`}
                                     >
                                       {v.name.split('|')[0].trim()} ({v.price} TL)
