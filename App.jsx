@@ -171,6 +171,9 @@ export default function App() {
   const [clientCustomerName, setClientCustomerName] = useState('');
   const [clientCustomerPhone, setClientCustomerPhone] = useState('');
   const [clientCustomerAddress, setClientCustomerAddress] = useState('');
+  
+  // Yeni eklenen state: Gruplandırılmış temizlik kartlarında seçilen paketler (örn: { "Çocuk Yatak Odası_Tek Kişilik Yatak Yıkama": "Comfort" })
+  const [clientSelectedVariants, setClientSelectedVariants] = useState({});
 
   const syncWithCloud = async () => {
     setIsSynced(false);
@@ -728,26 +731,53 @@ export default function App() {
     return name.replace(/\s*\(Yönetici\)/gi, '').replace(/\s*\(Personel\)/gi, '').trim();
   };
 
-  // MÜŞTERİ PANELİ EKRANI
+  // MÜŞTERİ PANELİ EKRANI (PAKET SEÇİMLİ SADELEŞTİRİLMİŞ YAPI)
   if (showPortalDirectly || activeTab === 'client-portal') {
-    const groupedServices = services.reduce((acc, srv) => {
+    // Hizmetleri temel adlarına göre gruplayalım (Örn: "Tek Kişilik Yatak Yıkama")
+    // İsimlerin içinde "Essential | ", "Comfort | ", "Premium | " gibi ifadeler varsa temizleyip ana ürün adı elde ediyoruz.
+    const getCleanServiceName = (fullName) => {
+      if (!fullName) return '';
+      return fullName.replace(/^(Essential|Comfort|Premium|Ekonomik|Standart|Lüks)\s*\|\s*/i, '').trim();
+    };
+
+    // Kategorilere göre gruplama ve ürünleri temel adına göre birleştirme
+    const groupedServicesByBaseName = services.reduce((acc, srv) => {
       const cat = srv.category || 'Genel Alanlar';
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(srv);
+      if (!acc[cat]) acc[cat] = {};
+      
+      const baseName = getCleanServiceName(srv.name);
+      if (!acc[cat][baseName]) {
+        acc[cat][baseName] = [];
+      }
+      acc[cat][baseName].push(srv); // Her varyantı (Essential, Comfort vb.) içine atıyoruz
       return acc;
     }, {});
 
-    const calcSubTotal = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
-      const srv = services.find(s => s.id === sId);
-      return sum + (srv ? srv.price * qty : 0);
-    }, 0);
+    // Sepet toplamı hesaplama (clientSelectedItems ve clientSelectedVariants dikkate alınarak)
+    let calcSubTotal = 0;
+    let calcTotalDuration = 0;
+    const activeSelectedList = [];
 
-    const calcTotalDuration = Object.entries(clientSelectedItems).reduce((sum, [sId, qty]) => {
-      const srv = services.find(s => s.id === sId);
-      return sum + (srv ? (srv.durationMinutes || 30) * qty : 0);
-    }, 0);
+    Object.entries(clientSelectedItems).forEach(([baseKey, qty]) => {
+      if (qty <= 0) return;
+      const [catName, baseName] = baseKey.split('__');
+      const variants = groupedServicesByBaseName[catName]?.[baseName] || [];
+      const chosenVariantName = clientSelectedVariants[baseKey] || variants[0]?.name;
+      const selectedSrv = variants.find(v => v.name === chosenVariantName) || variants[0];
 
-    const activeSelectedList = Object.entries(clientSelectedItems).filter(([_, qty]) => qty > 0);
+      if (selectedSrv) {
+        calcSubTotal += selectedSrv.price * qty;
+        calcTotalDuration += (selectedSrv.durationMinutes || 30) * qty;
+        activeSelectedList.push({
+          baseKey,
+          serviceId: selectedSrv.id,
+          serviceName: selectedSrv.name,
+          qty,
+          unitPrice: selectedSrv.price,
+          durationMinutes: selectedSrv.durationMinutes || 30
+        });
+      }
+    });
 
     return (
       <div className="min-h-screen bg-slate-100 p-4 sm:p-8 font-sans">
@@ -773,40 +803,77 @@ export default function App() {
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">TEMİZLİK ALANLARI VE ÜRÜN SEÇİMİ</h3>
             
-            {Object.entries(groupedServices).map(([categoryName, catServices]) => (
+            {Object.entries(groupedServicesByBaseName).map(([categoryName, baseServicesMap]) => (
               <div key={categoryName} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
                 <h4 className="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center space-x-2">
                   <span>🏠 {categoryName}</span>
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {catServices.map(srv => {
-                    const qty = clientSelectedItems[srv.id] || 0;
+                <div className="grid grid-cols-1 gap-2.5">
+                  {Object.entries(baseServicesMap).map(([baseName, variants]) => {
+                    const baseKey = `${categoryName}__${baseName}`;
+                    const qty = clientSelectedItems[baseKey] || 0;
+                    const currentVariantName = clientSelectedVariants[baseKey] || variants[0]?.name;
+                    const activeVariant = variants.find(v => v.name === currentVariantName) || variants[0];
+
                     return (
-                      <div key={srv.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm">
-                        <div>
-                          <div className="font-bold text-xs text-slate-900">{srv.name}</div>
-                          <div className="text-xs text-emerald-600 font-extrabold">{srv.price} TL / {srv.unit}</div>
-                          <div className="text-[11px] text-purple-700 font-bold mt-0.5">⏱️ Tahmini Süre: {srv.durationMinutes || 30} dk</div>
+                      <div key={baseKey} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-sm space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-xs text-slate-900">{baseName}</div>
+                            <div className="text-xs text-emerald-600 font-extrabold mt-0.5">
+                              {activeVariant?.price} TL / {activeVariant?.unit || 'adet'}
+                            </div>
+                            <div className="text-[11px] text-purple-700 font-bold mt-0.5">
+                              ⏱️ Tahmini Süre: {activeVariant?.durationMinutes || 30} dk
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                const newQty = Math.max(0, qty - 1);
+                                setClientSelectedItems({ ...clientSelectedItems, [baseKey]: newQty });
+                              }}
+                              className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
+                            >-</button>
+                            <span className="text-xs font-black w-5 text-center">{qty}</span>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                const newQty = qty + 1;
+                                setClientSelectedItems({ ...clientSelectedItems, [baseKey]: newQty });
+                              }}
+                              className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
+                            >+</button>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              const newQty = Math.max(0, qty - 1);
-                              setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
-                            }}
-                            className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
-                          >-</button>
-                          <span className="text-xs font-black w-5 text-center">{qty}</span>
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              const newQty = qty + 1;
-                              setClientSelectedItems({ ...clientSelectedItems, [srv.id]: newQty });
-                            }}
-                            className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
-                          >+</button>
-                        </div>
+
+                        {/* Paket / Kalite Seçim Butonları (Essential, Comfort, Premium vb.) */}
+                        {variants.length > 1 && (
+                          <div className="pt-2 border-t flex flex-wrap gap-1.5 items-center">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Paket:</span>
+                            {variants.map(v => {
+                              const isSelected = currentVariantName === v.name;
+                              return (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setClientSelectedVariants({ ...clientSelectedVariants, [baseKey]: v.name });
+                                  }}
+                                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition ${
+                                    isSelected 
+                                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' 
+                                      : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  {v.name.split('|')[0].trim()} ({v.price} TL)
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -819,16 +886,12 @@ export default function App() {
             <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl space-y-2">
               <h4 className="text-xs font-black text-purple-900 uppercase tracking-wide">📋 Sepet / Seçim Özetiniz</h4>
               <div className="space-y-1 divide-y divide-purple-100 text-xs">
-                {activeSelectedList.map(([sId, qty]) => {
-                  const srv = services.find(s => s.id === sId);
-                  if (!srv) return null;
-                  return (
-                    <div key={sId} className="pt-1.5 flex justify-between items-center text-slate-800 font-medium">
-                      <span>• {srv.name} (x{qty})</span>
-                      <span className="font-bold text-purple-700">{qty * srv.price} TL</span>
-                    </div>
-                  );
-                })}
+                {activeSelectedList.map((item, idx) => (
+                  <div key={idx} className="pt-1.5 flex justify-between items-center text-slate-800 font-medium">
+                    <span>• {item.serviceName} (x{item.qty})</span>
+                    <span className="font-bold text-purple-700">{item.qty * item.unitPrice} TL</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -858,10 +921,7 @@ export default function App() {
                 alert('Lütfen ad soyad ve telefon numaranızı giriniz.');
                 return;
               }
-              const chosenDetails = activeSelectedList.map(([sId, qty]) => {
-                const srv = services.find(s => s.id === sId);
-                return `${srv?.name} x${qty}`;
-              }).join(', ');
+              const chosenDetails = activeSelectedList.map(item => `${item.serviceName} x${item.qty}`).join(', ');
               const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~{calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
               window.open(`https://wa.me/${CORPORATE_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
@@ -1206,47 +1266,87 @@ export default function App() {
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">TEMİZLİK ALANLARI VE ÜRÜN SEÇİMİ</label>
                 
-                {Object.entries(groupedServicesMap).map(([catName, catSvcs]) => (
+                {Object.entries(
+                  services.reduce((acc, srv) => {
+                    const cat = srv.category || 'Genel Alanlar';
+                    if (!acc[cat]) acc[cat] = {};
+                    const baseName = srv.name.replace(/^(Essential|Comfort|Premium|Ekonomik|Standart|Lüks)\s*\|\s*/i, '').trim();
+                    if (!acc[cat][baseName]) acc[cat][baseName] = [];
+                    acc[cat][baseName].push(srv);
+                    return acc;
+                  }, {})
+                ).map(([catName, baseServicesMap]) => (
                   <div key={catName} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
                     <h4 className="font-extrabold text-xs text-slate-900 border-b pb-1.5 flex items-center space-x-1.5">
                       <span>🏠 {catName}</span>
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {catSvcs.map((srv) => {
-                        const existingItem = selectedItems.find(i => i.serviceId === srv.id);
+                    <div className="grid grid-cols-1 gap-2">
+                      {Object.entries(baseServicesMap).map(([baseName, variants]) => {
+                        const baseKey = `${catName}__${baseName}`;
+                        const existingItem = selectedItems.find(i => i.baseKey === baseKey || i.serviceName.includes(baseName));
                         const qty = existingItem ? existingItem.qty : 0;
+                        const currentVariantName = existingItem ? existingItem.serviceName : variants[0]?.name;
+                        const activeVariant = variants.find(v => v.name === currentVariantName) || variants[0];
+
                         return (
-                          <div key={srv.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between">
-                            <div>
-                              <div className="font-bold text-xs text-slate-900">{srv.name}</div>
-                              <div className="text-emerald-600 font-extrabold text-xs">{srv.price} TL / {srv.unit}</div>
-                              <div className="text-[10px] text-purple-700 font-bold mt-0.5">⏱️ {srv.durationMinutes || 30} dk</div>
+                          <div key={baseKey} className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-bold text-xs text-slate-900">{baseName}</div>
+                                <div className="text-emerald-600 font-extrabold text-xs">{activeVariant?.price} TL / {activeVariant?.unit || 'adet'}</div>
+                                <div className="text-[10px] text-purple-700 font-bold mt-0.5">⏱️ {activeVariant?.durationMinutes || 30} dk</div>
+                              </div>
+                              <div className="flex items-center space-x-1.5">
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    if (qty <= 1) {
+                                      setSelectedItems(selectedItems.filter(i => i.serviceId !== activeVariant.id));
+                                    } else {
+                                      setSelectedItems(selectedItems.map(i => i.serviceId === activeVariant.id ? { ...i, qty: i.qty - 1 } : i));
+                                    }
+                                  }} 
+                                  className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
+                                >-</button>
+                                <span className="text-xs font-black w-4 text-center">{qty}</span>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    if (existingItem) {
+                                      setSelectedItems(selectedItems.map(i => i.serviceId === activeVariant.id ? { ...i, qty: i.qty + 1 } : i));
+                                    } else {
+                                      setSelectedItems([...selectedItems, { baseKey, serviceId: activeVariant.id, serviceName: activeVariant.name, qty: 1, unitPrice: activeVariant.price, durationMinutes: activeVariant.durationMinutes || 30 }]);
+                                    }
+                                  }} 
+                                  className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
+                                >+</button>
+                              </div>
                             </div>
-                            <div className="flex items-center space-x-1.5">
-                              <button 
-                                type="button" 
-                                onClick={() => {
-                                  if (qty <= 1) {
-                                    setSelectedItems(selectedItems.filter(i => i.serviceId !== srv.id));
-                                  } else {
-                                    setSelectedItems(selectedItems.map(i => i.serviceId === srv.id ? { ...i, qty: i.qty - 1 } : i));
-                                  }
-                                }} 
-                                className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
-                              >-</button>
-                              <span className="text-xs font-black w-4 text-center">{qty}</span>
-                              <button 
-                                type="button" 
-                                onClick={() => {
-                                  if (existingItem) {
-                                    setSelectedItems(selectedItems.map(i => i.serviceId === srv.id ? { ...i, qty: i.qty + 1 } : i));
-                                  } else {
-                                    setSelectedItems([...selectedItems, { serviceId: srv.id, serviceName: srv.name, qty: 1, unitPrice: srv.price, durationMinutes: srv.durationMinutes || 30 }]);
-                                  }
-                                }} 
-                                className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
-                              >+</button>
-                            </div>
+
+                            {variants.length > 1 && (
+                              <div className="pt-1.5 border-t flex flex-wrap gap-1 items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">Paket:</span>
+                                {variants.map(v => {
+                                  const isSelected = activeVariant.id === v.id;
+                                  return (
+                                    <button
+                                      key={v.id}
+                                      type="button"
+                                      onClick={() => {
+                                        if (existingItem) {
+                                          setSelectedItems(selectedItems.map(i => i.baseKey === baseKey ? { ...i, serviceId: v.id, serviceName: v.name, unitPrice: v.price, durationMinutes: v.durationMinutes || 30 } : i));
+                                        }
+                                      }}
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded border transition ${
+                                        isSelected ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200'
+                                      }`}
+                                    >
+                                      {v.name.split('|')[0].trim()} ({v.price} TL)
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
