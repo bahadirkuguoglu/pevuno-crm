@@ -174,6 +174,7 @@ export default function App() {
   
   const [clientSelectedVariants, setClientSelectedVariants] = useState({});
   const [adminSelectedVariants, setAdminSelectedVariants] = useState({});
+  const [adminSelectedItems, setAdminSelectedItems] = useState({});
 
   const syncWithCloud = async () => {
     setIsSynced(false);
@@ -247,7 +248,7 @@ export default function App() {
   const [quickAddress, setQuickAddress] = useState('');
   const [quickTaxOffice, setQuickTaxOffice] = useState('');
   const [quickTaxNumber, setQuickTaxNumber] = useState('');
-  const [selectedItems, setSelectedItems] = useState([]);
+  
   const [discountType, setDiscountType] = useState('none');
   const [discountValue, setDiscountValue] = useState(0);
   const [jobDate, setJobDate] = useState(new Date().toISOString().split('T')[0]);
@@ -324,17 +325,49 @@ export default function App() {
     return `${endHours}:${endMins}`;
   };
 
-  const subtotal = selectedItems.reduce((acc, item) => acc + (item.qty * item.unitPrice), 0);
-  const totalDuration = selectedItems.reduce((acc, item) => acc + (item.qty * (item.durationMinutes || 30)), 0);
-  
-  const calculateDiscount = () => {
+  // Yönetici yeni iş kaydı için seçilen ürünlerin toplam ve süre hesaplamaları
+  const groupedAdminServicesByBaseName = services.reduce((acc, srv) => {
+    const cat = srv.category || 'Genel Alanlar';
+    if (!acc[cat]) acc[cat] = {};
+    const baseName = srv.name.replace(/^(Essential|Comfort|Premium|Ekonomik|Standart|Lüks)\s*\|\s*/i, '').trim();
+    if (!acc[cat][baseName]) acc[cat][baseName] = [];
+    acc[cat][baseName].push(srv);
+    return acc;
+  }, {});
+
+  let adminSubtotal = 0;
+  let adminTotalDuration = 0;
+  const adminActiveSelectedList = [];
+
+  Object.entries(adminSelectedItems).forEach(([baseKey, qty]) => {
+    if (qty <= 0) return;
+    const [catName, baseName] = baseKey.split('__');
+    const variants = groupedAdminServicesByBaseName[catName]?.[baseName] || [];
+    const chosenVariantName = adminSelectedVariants[baseKey] || variants[0]?.name;
+    const selectedSrv = variants.find(v => v.name === chosenVariantName) || variants[0];
+
+    if (selectedSrv) {
+      adminSubtotal += selectedSrv.price * qty;
+      adminTotalDuration += (selectedSrv.durationMinutes || 30) * qty;
+      adminActiveSelectedList.push({
+        baseKey,
+        serviceId: selectedSrv.id,
+        serviceName: selectedSrv.name,
+        qty,
+        unitPrice: selectedSrv.price,
+        durationMinutes: selectedSrv.durationMinutes || 30
+      });
+    }
+  });
+
+  const calculateAdminDiscount = () => {
     if (discountType === 'amount') return Number(discountValue) || 0;
-    if (discountType === 'percent') return (subtotal * (Number(discountValue) || 0)) / 100;
+    if (discountType === 'percent') return (adminSubtotal * (Number(discountValue) || 0)) / 100;
     return 0;
   };
-  
-  const calculatedDiscount = calculateDiscount();
-  const finalTotal = Math.max(0, subtotal - calculatedDiscount);
+
+  const adminCalculatedDiscount = calculateAdminDiscount();
+  const adminFinalTotal = Math.max(0, adminSubtotal - adminCalculatedDiscount);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -454,7 +487,7 @@ export default function App() {
 
   const handleCreateJob = (e) => {
     e.preventDefault();
-    if (!newCustomerName || !newCustomerPhone || selectedItems.length === 0 || !newAddress) {
+    if (!newCustomerName || !newCustomerPhone || adminActiveSelectedList.length === 0 || !newAddress) {
       alert('Lütfen müşteri adı, telefon, adres ve en az 1 hizmet seçiniz.');
       return;
     }
@@ -467,6 +500,7 @@ export default function App() {
     updateNextJobId(nextJobIdNum + 1);
     const workerNames = selectedWorkerDetails.map(w => w.workerName);
     const totalWorkerHakedis = selectedWorkerDetails.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+    
     const newJobObj = {
       id: assignedJobId,
       customerId,
@@ -474,12 +508,12 @@ export default function App() {
       phone: newCustomerPhone,
       address: newAddress,
       note: newNote,
-      items: selectedItems,
-      subtotal,
-      estimatedDurationMinutes: totalDuration,
+      items: adminActiveSelectedList,
+      subtotal: adminSubtotal,
+      estimatedDurationMinutes: adminTotalDuration,
       discountType,
       discountValue: Number(discountValue) || 0,
-      totalAmount: finalTotal,
+      totalAmount: adminFinalTotal,
       paidAmount: 0,
       paymentDetails: [],
       isPaymentReceived: false,
@@ -491,6 +525,7 @@ export default function App() {
       totalWorkerHakedis: totalWorkerHakedis,
       completedByWorker: false
     };
+
     updateJobs([newJobObj, ...jobs]);
     const existingCustIndex = customers.findIndex(c => c.phone === newCustomerPhone);
     let updatedCusts = [...customers];
@@ -510,7 +545,7 @@ export default function App() {
       });
     }
     updateCustomers(updatedCusts);
-    setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setSelectedItems([]); setDiscountType('none'); setDiscountValue(0); setSelectedWorkerDetails([]);
+    setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setAdminSelectedItems({}); setDiscountType('none'); setDiscountValue(0); setSelectedWorkerDetails([]);
     setActiveTab('jobs');
   };
 
@@ -556,6 +591,42 @@ export default function App() {
 
   const completedJobsList = jobs.filter(j => isCompletedStatus(j.status));
   const activeJobsList = jobs.filter(j => !isCompletedStatus(j.status));
+
+  // SAHA ÇALIŞANI İÇİN KİŞİSEL KAZANÇ / HAKEDİŞ HESAPLAMALARI
+  const workerCompletedJobs = jobs.filter(j => isCompletedStatus(j.status) && j.assignedWorkers?.includes(currentUser?.name));
+  
+  const workerThisMonthCiro = workerCompletedJobs.filter(j => {
+    if (!j.date) return false;
+    const d = new Date(j.date);
+    return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+  }).reduce((acc, j) => {
+    const wDetail = j.workerHakedisDetails?.find(w => w.workerName === currentUser?.name);
+    return acc + (wDetail ? Number(wDetail.amount) || 0 : 0);
+  }, 0);
+
+  const workerLastMonthCiro = workerCompletedJobs.filter(j => {
+    if (!j.date) return false;
+    const d = new Date(j.date);
+    const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    return d.getFullYear() === lastMonthDate.getFullYear() && d.getMonth() === lastMonthDate.getMonth();
+  }).reduce((acc, j) => {
+    const wDetail = j.workerHakedisDetails?.find(w => w.workerName === currentUser?.name);
+    return acc + (wDetail ? Number(wDetail.amount) || 0 : 0);
+  }, 0);
+
+  const workerThisYearCiro = workerCompletedJobs.filter(j => {
+    if (!j.date) return false;
+    const d = new Date(j.date);
+    return d.getFullYear() === currentYear;
+  }).reduce((acc, j) => {
+    const wDetail = j.workerHakedisDetails?.find(w => w.workerName === currentUser?.name);
+    return acc + (wDetail ? Number(wDetail.amount) || 0 : 0);
+  }, 0);
+
+  const workerTotalEarned = workerCompletedJobs.reduce((acc, j) => {
+    const wDetail = j.workerHakedisDetails?.find(w => w.workerName === currentUser?.name);
+    return acc + (wDetail ? Number(wDetail.amount) || 0 : 0);
+  }, 0);
 
   // IPHONE ANA EKRAN UYGULAMA (PWA) MODUNA ÖZEL Fİş AÇMA VE GERİ DÖN TUŞU EKLENMİŞ FONKSİYON
   const downloadReceiptAsImage = () => {
@@ -685,9 +756,6 @@ export default function App() {
     window.open(`https://wa.me/${formattedPhone}?text=${encoded}`, '_blank');
   };
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
   const totalCollected = jobs.reduce((acc, j) => acc + (Number(j.paidAmount) || 0), 0);
   
   const totalWorkerHakedisSum = jobs.reduce((acc, j) => {
@@ -975,15 +1043,6 @@ export default function App() {
     return acc;
   }, {});
 
-  const groupedAdminServicesByBaseName = services.reduce((acc, srv) => {
-    const cat = srv.category || 'Genel Alanlar';
-    if (!acc[cat]) acc[cat] = {};
-    const baseName = getCleanServiceName(srv.name);
-    if (!acc[cat][baseName]) acc[cat][baseName] = [];
-    acc[cat][baseName].push(srv);
-    return acc;
-  }, {});
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
       <header className="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
@@ -1058,6 +1117,7 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* YÖNETİCİ DASHBOARD */}
         {activeTab === 'dashboard' && currentUser.role === 'admin' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-3xl text-white shadow-lg">
@@ -1120,7 +1180,69 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'jobs' && (
+        {/* SAHA ÇALIŞANI İÇİN KİŞİSEL KAZANÇ & İŞLER EKRANI */}
+        {activeTab === 'jobs' && currentUser.role === 'worker' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-6 rounded-3xl text-white shadow-lg space-y-2">
+              <h2 className="text-2xl font-black">Hoş Geldin, {cleanCurrentUserName} 👷</h2>
+              <p className="text-xs text-slate-300">Saha Personeli Performans ve Kazanç Paneli</p>
+            </div>
+
+            {/* Saha Çalışanı Kazanç Kartları */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Bu Ay Kazancım</span>
+                <div className="text-lg font-black text-emerald-600">{workerThisMonthCiro} TL</div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Geçen Ay Kazancım</span>
+                <div className="text-lg font-black text-blue-600">{workerLastMonthCiro} TL</div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Bu Yıl Kazancım</span>
+                <div className="text-lg font-black text-purple-600">{workerThisYearCiro} TL</div>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">Toplam Kazanç</span>
+                <div className="text-lg font-black text-teal-600">{workerTotalEarned} TL</div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
+              <h2 className="text-lg font-bold flex items-center space-x-2">
+                <Navigation className="w-5 h-5 text-emerald-400" />
+                <span>Atanan Aktif İşlerim ve Saha Adımları</span>
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sortedJobsForUser.filter(job => !isCompletedStatus(job.status)).map((job, index) => {
+                const estEndTime = calculateEstimatedEndTime(job.time, job.estimatedDurationMinutes);
+                const myHakedisDetail = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+                return (
+                  <ChronologicalJobCardItem 
+                    key={job.id} 
+                    job={job} 
+                    index={index} 
+                    estEndTime={estEndTime} 
+                    myHakedisDetail={myHakedisDetail}
+                    currentUser={currentUser}
+                    handleSaveJobPaymentAndComplete={handleSaveJobPaymentAndComplete}
+                    sendWhatsAppMessage={sendWhatsAppMessage}
+                    setSelectedJobForReceipt={setSelectedJobForReceipt}
+                  />
+                );
+              })}
+              {sortedJobsForUser.filter(job => !isCompletedStatus(job.status)).length === 0 && (
+                <div className="col-span-full bg-white p-8 rounded-2xl text-center text-slate-400 text-xs border">
+                  Şu an üzerinize atanmış aktif iş bulunmuyor.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* YÖNETİCİ AKTİF İŞLER EKRANI */}
+        {activeTab === 'jobs' && currentUser.role === 'admin' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
               <h2 className="text-lg font-bold flex items-center space-x-2">
@@ -1186,6 +1308,7 @@ export default function App() {
           </div>
         )}
 
+        {/* YENİ İŞ KAYDI EKRANI (MÜŞTERİ PANELİNDEKİ SADE VE ŞIK PAKET SEÇİMLİ YAPIYA UYARLANDI) */}
         {activeTab === 'new-job' && currentUser.role === 'admin' && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 max-w-3xl mx-auto space-y-6">
             <h2 className="text-xl font-bold text-slate-900">Yeni İş Randevusu Oluştur</h2>
@@ -1267,76 +1390,72 @@ export default function App() {
                 </div>
               </div>
               
-              {/* YÖNETİCİ YENİ İŞ KAYDI - SADELEŞTİRİLMİŞ PAKET SEÇİMLİ ÜRÜN KARTLARI */}
+              {/* YENİ ŞIK VE SADE PAKET SEÇİMLİ ÜRÜN KARTLARI (MÜŞTERİ PANELİYLE BİREBİR AYNI) */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">TEMİZLİK ALANLARI VE ÜRÜN SEÇİMİ</label>
                 
-                {Object.entries(groupedAdminServicesByBaseName).map(([catName, baseServicesMap]) => (
-                  <div key={catName} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
-                    <h4 className="font-extrabold text-xs text-slate-900 border-b pb-1.5 flex items-center space-x-1.5">
-                      <span>🏠 {catName}</span>
+                {Object.entries(groupedAdminServicesByBaseName).map(([categoryName, baseServicesMap]) => (
+                  <div key={categoryName} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+                    <h4 className="font-extrabold text-sm text-slate-900 border-b pb-2 flex items-center space-x-2">
+                      <span>🏠 {categoryName}</span>
                     </h4>
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="grid grid-cols-1 gap-2.5">
                       {Object.entries(baseServicesMap).map(([baseName, variants]) => {
-                        const baseKey = `${catName}__${baseName}`;
+                        const baseKey = `${categoryName}__${baseName}`;
+                        const qty = adminSelectedItems[baseKey] || 0;
                         const currentVariantName = adminSelectedVariants[baseKey] || variants[0]?.name;
                         const activeVariant = variants.find(v => v.name === currentVariantName) || variants[0];
-                        
-                        const existingItem = selectedItems.find(i => i.serviceId === activeVariant.id);
-                        const qty = existingItem ? existingItem.qty : 0;
 
                         return (
-                          <div key={baseKey} className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-2">
-                            <div className="flex items-center justify-between">
+                          <div key={baseKey} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-sm space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                               <div>
                                 <div className="font-bold text-xs text-slate-900">{baseName}</div>
-                                <div className="text-emerald-600 font-extrabold text-xs">{activeVariant?.price} TL / {activeVariant?.unit || 'adet'}</div>
-                                <div className="text-[10px] text-purple-700 font-bold mt-0.5">⏱️ {activeVariant?.durationMinutes || 30} dk</div>
+                                <div className="text-xs text-emerald-600 font-extrabold mt-0.5">
+                                  {activeVariant?.price} TL / {activeVariant?.unit || 'adet'}
+                                </div>
+                                <div className="text-[11px] text-purple-700 font-bold mt-0.5">
+                                  ⏱️ Tahmini Süre: {activeVariant?.durationMinutes || 30} dk
+                                </div>
                               </div>
-                              <div className="flex items-center space-x-1.5">
+
+                              <div className="flex items-center space-x-2">
                                 <button 
                                   type="button" 
                                   onClick={() => {
-                                    if (qty <= 1) {
-                                      setSelectedItems(selectedItems.filter(i => i.serviceId !== activeVariant.id));
-                                    } else {
-                                      setSelectedItems(selectedItems.map(i => i.serviceId === activeVariant.id ? { ...i, qty: i.qty - 1 } : i));
-                                    }
-                                  }} 
+                                    const newQty = Math.max(0, qty - 1);
+                                    setAdminSelectedItems({ ...adminSelectedItems, [baseKey]: newQty });
+                                  }}
                                   className="w-7 h-7 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg text-xs"
                                 >-</button>
-                                <span className="text-xs font-black w-4 text-center">{qty}</span>
+                                <span className="text-xs font-black w-5 text-center">{qty}</span>
                                 <button 
                                   type="button" 
                                   onClick={() => {
-                                    if (existingItem) {
-                                      setSelectedItems(selectedItems.map(i => i.serviceId === activeVariant.id ? { ...i, qty: i.qty + 1 } : i));
-                                    } else {
-                                      setSelectedItems([...selectedItems, { baseKey, serviceId: activeVariant.id, serviceName: activeVariant.name, qty: 1, unitPrice: activeVariant.price, durationMinutes: activeVariant.durationMinutes || 30 }]);
-                                    }
-                                  }} 
+                                    const newQty = qty + 1;
+                                    setAdminSelectedItems({ ...adminSelectedItems, [baseKey]: newQty });
+                                  }}
                                   className="w-7 h-7 bg-emerald-600 text-white font-bold rounded-lg text-xs"
                                 >+</button>
                               </div>
                             </div>
 
                             {variants.length > 1 && (
-                              <div className="pt-1.5 border-t flex flex-wrap gap-1 items-center">
+                              <div className="pt-2 border-t flex flex-wrap gap-1.5 items-center">
                                 <span className="text-[10px] font-bold text-slate-500 uppercase">Paket:</span>
                                 {variants.map(v => {
-                                  const isSelected = activeVariant.id === v.id;
+                                  const isSelected = currentVariantName === v.name;
                                   return (
                                     <button
                                       key={v.id}
                                       type="button"
                                       onClick={() => {
                                         setAdminSelectedVariants({ ...adminSelectedVariants, [baseKey]: v.name });
-                                        if (existingItem) {
-                                          setSelectedItems(selectedItems.map(i => i.serviceId === activeVariant.id ? { ...i, serviceId: v.id, serviceName: v.name, unitPrice: v.price, durationMinutes: v.durationMinutes || 30 } : i));
-                                        }
                                       }}
-                                      className={`text-[10px] font-bold px-2 py-0.5 rounded border transition ${
-                                        isSelected ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                                      className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition ${
+                                        isSelected 
+                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' 
+                                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                                       }`}
                                     >
                                       {v.name.split('|')[0].trim()} ({v.price} TL)
@@ -1352,12 +1471,12 @@ export default function App() {
                   </div>
                 ))}
 
-                {selectedItems.length > 0 && (
+                {adminActiveSelectedList.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-slate-200 space-y-3">
                     <div className="flex justify-between items-center">
                       <p className="text-xs font-bold text-slate-600">Seçilen Kalemler ve Tutar:</p>
                       <span className="text-xs font-extrabold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200">
-                        ⏱️ Toplam Süre: ~{totalDuration} dk
+                        ⏱️ Toplam Süre: ~{adminTotalDuration} dk
                       </span>
                     </div>
 
@@ -1390,13 +1509,13 @@ export default function App() {
                         </div>
                       )}
                       <div className="text-right ml-auto">
-                        <span className="text-[10px] text-slate-400 block">Ara Toplam: {subtotal} TL</span>
-                        {discountType !== 'none' && <span className="text-[10px] text-rose-500 block">İndirim: -{calculatedDiscount} TL</span>}
-                        <span className="text-base font-black text-emerald-700">Net Tutar: {finalTotal} TL</span>
+                        <span className="text-[10px] text-slate-400 block">Ara Toplam: {adminSubtotal} TL</span>
+                        {discountType !== 'none' && <span className="text-[10px] text-rose-500 block">İndirim: -{adminCalculatedDiscount} TL</span>}
+                        <span className="text-base font-black text-emerald-700">Net Tutar: {adminFinalTotal} TL</span>
                       </div>
                     </div>
 
-                    {selectedItems.map((item, idx) => (
+                    {adminActiveSelectedList.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between bg-white p-2.5 rounded-xl border text-sm">
                         <span>{item.serviceName} x{item.qty}</span>
                         <span className="font-bold">{item.qty * item.unitPrice} TL</span>
