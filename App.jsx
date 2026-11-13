@@ -268,13 +268,31 @@ export default function App() {
       }
       
       if (cloudJobs && Array.isArray(cloudJobs)) { 
-        setJobs(cloudJobs); 
-        localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs)); 
+        setJobs(prevJobs => {
+          if (isMutatingRef.current) return prevJobs;
+          const merged = [...cloudJobs];
+          prevJobs.forEach(pj => {
+            if (!merged.some(mj => mj.id === pj.id)) {
+              merged.push(pj);
+            }
+          });
+          localStorage.setItem('pevuno_jobs', JSON.stringify(merged));
+          return merged;
+        }); 
       }
       
       if (cloudCustomers && Array.isArray(cloudCustomers)) { 
-        setCustomers(cloudCustomers); 
-        localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers)); 
+        setCustomers(prevCusts => {
+          if (isMutatingRef.current) return prevCusts;
+          const merged = [...cloudCustomers];
+          prevCusts.forEach(pc => {
+            if (!merged.some(mc => mc.id === pc.id || mc.phone === pc.phone)) {
+              merged.push(pc);
+            }
+          });
+          localStorage.setItem('pevuno_customers', JSON.stringify(merged));
+          return merged;
+        }); 
       }
       
       if (cloudCustId) { setNextCustIdNum(Number(cloudCustId)); localStorage.setItem('pevuno_next_cust_id', cloudCustId); }
@@ -347,7 +365,7 @@ export default function App() {
     try {
       await saveSupabaseData(key, newValue);
     } finally {
-      isMutatingRef.current = false;
+      setTimeout(() => { isMutatingRef.current = false; }, 2000);
     }
   };
 
@@ -371,7 +389,7 @@ export default function App() {
       if (type === 'banner') { setPortalBannerUrl(tempBannerInput); localStorage.setItem('pevuno_portal_banner', tempBannerInput); await saveSupabaseData('portal_banner', tempBannerInput); }
       alert('Şablon ve ayarlar başarıyla güncellendi!');
     } finally {
-      isMutatingRef.current = false;
+      setTimeout(() => { isMutatingRef.current = false; }, 2000);
     }
   };
 
@@ -507,33 +525,35 @@ export default function App() {
     e.preventDefault();
     if (!quickName || !quickPhone) { alert('İsim ve telefon zorunludur.'); return; }
     
-    const assignedId = `CUST-${nextCustIdNum}`;
-    const nextNum = nextCustIdNum + 1;
-    const newCustObj = {
-      id: assignedId,
-      name: quickName,
-      phone: quickPhone,
-      address: quickAddress || 'Belirtilmedi',
-      customerType,
-      taxOffice: customerType === 'kurumsal' ? quickTaxOffice : '',
-      taxNumber: customerType === 'kurumsal' ? quickTaxNumber : '',
-      kvkk: false,
-      lastJobDate: 'Yeni Eklenen'
-    };
     isMutatingRef.current = true;
     try {
+      const assignedId = `CUST-${nextCustIdNum}`;
+      const nextNum = nextCustIdNum + 1;
+      const newCustObj = {
+        id: assignedId,
+        name: quickName,
+        phone: quickPhone,
+        address: quickAddress || 'Belirtilmedi',
+        customerType,
+        taxOffice: customerType === 'kurumsal' ? quickTaxOffice : '',
+        taxNumber: customerType === 'kurumsal' ? quickTaxNumber : '',
+        kvkk: false,
+        lastJobDate: 'Yeni Eklenen'
+      };
+
       const updatedCusts = [...customers, newCustObj];
       setCustomers(updatedCusts);
       localStorage.setItem('pevuno_customers', JSON.stringify(updatedCusts));
       setNextCustIdNum(nextNum);
       localStorage.setItem('pevuno_next_cust_id', nextNum);
+
       await Promise.all([
         saveSupabaseData('customers', updatedCusts),
         saveSupabaseData('next_cust_id', nextNum)
       ]);
       alert('Müşteri başarıyla eklendi!');
     } finally {
-      isMutatingRef.current = false;
+      setTimeout(() => { isMutatingRef.current = false; }, 2000);
     }
     setQuickName(''); setQuickPhone(''); setQuickAddress(''); setQuickTaxOffice(''); setQuickTaxNumber('');
   };
@@ -619,49 +639,48 @@ export default function App() {
         totalWorkerHakedis: totalWorkerHakedis,
         completedByWorker: false
       };
-      let updatedJobsList = [];
-      setJobs(prevJobs => {
-        updatedJobsList = [newJobObj, ...prevJobs];
-        localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
-        return updatedJobsList;
-      });
-      let updatedCustsList = [];
-      setCustomers(prevCusts => {
-        const existingCustIndex = prevCusts.findIndex(c => c.phone === newCustomerPhone);
-        updatedCustsList = [...prevCusts];
-        if (existingCustIndex > -1) {
-          updatedCustsList[existingCustIndex] = { ...updatedCustsList[existingCustIndex], address: newAddress, lastJobDate: jobDate };
-        } else {
-          updatedCustsList.push({ 
-            id: customerId, 
-            name: newCustomerName, 
-            phone: newCustomerPhone, 
-            address: newAddress, 
-            customerType: 'bireysel',
-            taxOffice: '',
-            taxNumber: '',
-            kvkk: false, 
-            lastJobDate: jobDate 
-          });
-        }
-        localStorage.setItem('pevuno_customers', JSON.stringify(updatedCustsList));
-        return updatedCustsList;
-      });
+
+      const updatedJobsList = [newJobObj, ...jobs];
+      setJobs(updatedJobsList);
+      localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
+
+      let updatedCustsList = [...customers];
+      const existingCustIndex = updatedCustsList.findIndex(c => c.phone === newCustomerPhone);
+      if (existingCustIndex > -1) {
+        updatedCustsList[existingCustIndex] = { ...updatedCustsList[existingCustIndex], address: newAddress, lastJobDate: jobDate };
+      } else {
+        updatedCustsList.push({ 
+          id: customerId, 
+          name: newCustomerName, 
+          phone: newCustomerPhone, 
+          address: newAddress, 
+          customerType: 'bireysel',
+          taxOffice: '',
+          taxNumber: '',
+          kvkk: false, 
+          lastJobDate: jobDate 
+        });
+      }
+      setCustomers(updatedCustsList);
+      localStorage.setItem('pevuno_customers', JSON.stringify(updatedCustsList));
+
       setNextCustIdNum(nextCustNumToSave);
       localStorage.setItem('pevuno_next_cust_id', nextCustNumToSave);
       setNextJobIdNum(nextJobNumToSave);
       localStorage.setItem('pevuno_next_job_id', nextJobNumToSave);
+
       await Promise.all([
         saveSupabaseData('jobs', updatedJobsList),
         saveSupabaseData('customers', updatedCustsList),
         saveSupabaseData('next_cust_id', nextCustNumToSave),
         saveSupabaseData('next_job_id', nextJobNumToSave)
       ]);
+
       setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setHiddenWorkerNote(''); setAdminSelectedItems({}); setDiscountType('none'); setDiscountValue(0); setIncludeKdv(false); setSelectedWorkerDetails([]);
       setActiveTab('jobs');
-      await syncWithCloud(true);
+      alert('İş randevusu başarıyla oluşturuldu!');
     } finally {
-      isMutatingRef.current = false;
+      setTimeout(() => { isMutatingRef.current = false; }, 2000);
     }
   };
 
@@ -669,16 +688,12 @@ export default function App() {
     if (confirm('Bu iş kaydını silmek istediğinize emin misiniz?')) {
       isMutatingRef.current = true;
       try {
-        let updatedJobsList = [];
-        setJobs(prevJobs => {
-          updatedJobsList = prevJobs.filter(j => j.id !== jobId);
-          localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
-          return updatedJobsList;
-        });
+        const updatedJobsList = jobs.filter(j => j.id !== jobId);
+        setJobs(updatedJobsList);
+        localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
         await saveSupabaseData('jobs', updatedJobsList);
-        await syncWithCloud(true);
       } finally {
-        isMutatingRef.current = false;
+        setTimeout(() => { isMutatingRef.current = false; }, 2000);
       }
     }
   };
@@ -687,27 +702,23 @@ export default function App() {
     isMutatingRef.current = true;
     try {
       const totalPaid = paymentDetailsArray.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      let updatedJobsList = [];
-      
-      setJobs(prevJobs => {
-        updatedJobsList = prevJobs.map(j => {
-          if (j.id === jobId) {
-            return {
-              ...j,
-              paymentDetails: paymentDetailsArray,
-              paidAmount: totalPaid,
-              isPaymentReceived: totalPaid > 0,
-              status: isCompleted ? 'Tamamlandı' : j.status,
-              completedByWorker: isCompleted ? true : j.completedByWorker
-            };
-          }
-          return j;
-        });
-        localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
-        return updatedJobsList;
+      const updatedJobsList = jobs.map(j => {
+        if (j.id === jobId) {
+          return {
+            ...j,
+            paymentDetails: paymentDetailsArray,
+            paidAmount: totalPaid,
+            isPaymentReceived: totalPaid > 0,
+            status: isCompleted ? 'Tamamlandı' : j.status,
+            completedByWorker: isCompleted ? true : j.completedByWorker
+          };
+        }
+        return j;
       });
+      
+      setJobs(updatedJobsList);
+      localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
       await saveSupabaseData('jobs', updatedJobsList);
-      await syncWithCloud(true);
 
       if (isCompleted) {
         alert('İş başarıyla tamamlandı ve arşive taşındı!');
@@ -715,7 +726,7 @@ export default function App() {
         alert('Ödeme bilgileri kaydedildi!');
       }
     } finally {
-      isMutatingRef.current = false;
+      setTimeout(() => { isMutatingRef.current = false; }, 2000);
     }
   };
 
@@ -723,16 +734,12 @@ export default function App() {
     if (confirm('Bu işi tekrar Aktif İşler listesine almak istediğinize emin misiniz?')) {
       isMutatingRef.current = true;
       try {
-        let updatedJobsList = [];
-        setJobs(prevJobs => {
-          updatedJobsList = prevJobs.map(j => j.id === jobId ? { ...j, status: 'Sırada / Randevu', completedByWorker: false } : j);
-          localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
-          return updatedJobsList;
-        });
+        const updatedJobsList = jobs.map(j => j.id === jobId ? { ...j, status: 'Sırada / Randevu', completedByWorker: false } : j);
+        setJobs(updatedJobsList);
+        localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
         await saveSupabaseData('jobs', updatedJobsList);
-        await syncWithCloud(true);
       } finally {
-        isMutatingRef.current = false;
+        setTimeout(() => { isMutatingRef.current = false; }, 2000);
       }
     }
   };
@@ -1164,7 +1171,7 @@ export default function App() {
                 return;
               }
               const chosenDetails = activeSelectedList.map(item => `${item.serviceName} x${item.qty}`).join(', ');
-              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~{calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~${calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
               window.open(`https://wa.me/${CORPORATE_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
@@ -2390,7 +2397,7 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           <button 
             type="button"
             onClick={() => sendWhatsAppMessage('completion', job)} 
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-2.5 rounded-xl font-bold flex items-center justify-center space-x-1 shadow"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2.5 rounded-xl font-bold flex items-center justify-center space-x-1 shadow"
           >
             <MessageSquare className="w-4 h-4" />
             <span>5. Fiş / Bitti WP</span>
