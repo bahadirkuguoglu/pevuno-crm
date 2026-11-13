@@ -173,7 +173,7 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard'); 
   const [showPortalDirectly, setShowPortalDirectly] = useState(false);
-  const [isSynced, setIsSynced] = useState(false);
+  const [isSynced, setIsSynced] = useState(true);
   const receiptRef = useRef(null);
   const isMutatingRef = useRef(false);
   const lastMutationTimeRef = useRef(0);
@@ -235,11 +235,10 @@ export default function App() {
   const currentMonth = now.getMonth();
 
   const syncWithCloud = useCallback(async (force = false) => {
-    if (!force && (isMutatingRef.current || (Date.now() - lastMutationTimeRef.current < 4000))) {
+    if (!force && (isMutatingRef.current || (Date.now() - lastMutationTimeRef.current < 2000))) {
       return;
     }
     setIsSynced(false);
-    const syncStartTime = Date.now();
     try {
       const [
         cloudCats,
@@ -270,10 +269,7 @@ export default function App() {
         fetchSupabaseData('ontheway_template', null),
         fetchSupabaseData('completion_template', null)
       ]);
-      if (!force && (isMutatingRef.current || lastMutationTimeRef.current > syncStartTime)) {
-        setIsSynced(true);
-        return;
-      }
+
       if (cloudCats && Array.isArray(cloudCats)) { setCategories(cloudCats); localStorage.setItem('pevuno_categories', JSON.stringify(cloudCats)); }
       if (cloudServices && Array.isArray(cloudServices)) { setServices(cloudServices); localStorage.setItem('pevuno_services', JSON.stringify(cloudServices)); }
       if (cloudBanner) { setPortalBannerUrl(cloudBanner); setTempBannerInput(cloudBanner); localStorage.setItem('pevuno_portal_banner', cloudBanner); }
@@ -314,10 +310,11 @@ export default function App() {
 
   useEffect(() => {
     syncWithCloud(true);
-    const interval = setInterval(() => { syncWithCloud(false); }, 5000);
-    const handleFocus = () => syncWithCloud(false);
+    // Her 3 saniyede bir veya odaklanıldığında anlık kontrol ve hızlı senkronizasyon
+    const interval = setInterval(() => { syncWithCloud(false); }, 3000);
+    const handleFocus = () => syncWithCloud(true);
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') syncWithCloud(false);
+      if (document.visibilityState === 'visible') syncWithCloud(true);
     };
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -2422,7 +2419,7 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           <button 
             type="button"
             onClick={() => sendWhatsAppMessage('completion', job)} 
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-2.5 rounded-xl font-bold flex items-center justify-center space-x-1 shadow"
+            className="w-blue-600 hover:bg-blue-700 text-white text-xs py-2.5 rounded-xl font-bold flex items-center justify-center space-x-1 shadow"
           >
             <MessageSquare className="w-4 h-4" />
             <span>5. Fiş / Bitti WP</span>
