@@ -176,7 +176,6 @@ export default function App() {
   const [isSynced, setIsSynced] = useState(true);
   const receiptRef = useRef(null);
   const isMutatingRef = useRef(false);
-  const lastMutationTimeRef = useRef(0);
 
   const [categories, setCategories] = useState(() => {
     const saved = localStorage.getItem('pevuno_categories');
@@ -235,7 +234,7 @@ export default function App() {
   const currentMonth = now.getMonth();
 
   const syncWithCloud = useCallback(async (force = false) => {
-    if (!force && (isMutatingRef.current || (Date.now() - lastMutationTimeRef.current < 2000))) {
+    if (!force && isMutatingRef.current) {
       return;
     }
     setIsSynced(false);
@@ -286,10 +285,12 @@ export default function App() {
           return merged;
         });
       }
+      
       if (cloudJobs && Array.isArray(cloudJobs)) { 
         setJobs(cloudJobs); 
         localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs)); 
       }
+      
       if (cloudCustomers && Array.isArray(cloudCustomers)) { 
         setCustomers(cloudCustomers); 
         localStorage.setItem('pevuno_customers', JSON.stringify(cloudCustomers)); 
@@ -310,7 +311,6 @@ export default function App() {
 
   useEffect(() => {
     syncWithCloud(true);
-    // Her 3 saniyede bir veya odaklanıldığında anlık kontrol ve hızlı senkronizasyon
     const interval = setInterval(() => { syncWithCloud(false); }, 3000);
     const handleFocus = () => syncWithCloud(true);
     const handleVisibilityChange = () => {
@@ -361,13 +361,11 @@ export default function App() {
   
   const commitChange = async (key, newValue, setter, storageKey) => {
     isMutatingRef.current = true;
-    lastMutationTimeRef.current = Date.now();
     setter(newValue);
     localStorage.setItem(storageKey, JSON.stringify(newValue));
     try {
       await saveSupabaseData(key, newValue);
     } finally {
-      lastMutationTimeRef.current = Date.now();
       isMutatingRef.current = false;
     }
   };
@@ -383,7 +381,6 @@ export default function App() {
   const handleSaveTemplates = async (e, type) => {
     e.preventDefault();
     isMutatingRef.current = true;
-    lastMutationTimeRef.current = Date.now();
     try {
       if (type === 'kvkk') { setKvkkTemplate(tempKvkkInput); localStorage.setItem('pevuno_kvkk', tempKvkkInput); await saveSupabaseData('kvkk_template', tempKvkkInput); }
       if (type === 'reminder') { setReminderTemplate(tempReminderInput); localStorage.setItem('pevuno_reminder_template', tempReminderInput); await saveSupabaseData('reminder_template', tempReminderInput); }
@@ -393,7 +390,6 @@ export default function App() {
       if (type === 'banner') { setPortalBannerUrl(tempBannerInput); localStorage.setItem('pevuno_portal_banner', tempBannerInput); await saveSupabaseData('portal_banner', tempBannerInput); }
       alert('Şablon ve ayarlar başarıyla güncellendi!');
     } finally {
-      lastMutationTimeRef.current = Date.now();
       isMutatingRef.current = false;
     }
   };
@@ -544,7 +540,6 @@ export default function App() {
       lastJobDate: 'Yeni Eklenen'
     };
     isMutatingRef.current = true;
-    lastMutationTimeRef.current = Date.now();
     try {
       const updatedCusts = [...customers, newCustObj];
       setCustomers(updatedCusts);
@@ -557,7 +552,6 @@ export default function App() {
       ]);
       alert('Müşteri başarıyla eklendi!');
     } finally {
-      lastMutationTimeRef.current = Date.now();
       isMutatingRef.current = false;
     }
     setQuickName(''); setQuickPhone(''); setQuickAddress(''); setQuickTaxOffice(''); setQuickTaxNumber('');
@@ -607,7 +601,6 @@ export default function App() {
       return;
     }
     isMutatingRef.current = true;
-    lastMutationTimeRef.current = Date.now();
     try {
       const matchedCust = customers.find(c => c.phone === newCustomerPhone);
       let customerId = matchedCust ? matchedCust.id : `CUST-${nextCustIdNum}`;
@@ -686,7 +679,6 @@ export default function App() {
       setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setHiddenWorkerNote(''); setAdminSelectedItems({}); setDiscountType('none'); setDiscountValue(0); setIncludeKdv(false); setSelectedWorkerDetails([]);
       setActiveTab('jobs');
     } finally {
-      lastMutationTimeRef.current = Date.now();
       isMutatingRef.current = false;
     }
   };
@@ -694,7 +686,6 @@ export default function App() {
   const handleDeleteJob = async (jobId) => {
     if (confirm('Bu iş kaydını silmek istediğinize emin misiniz?')) {
       isMutatingRef.current = true;
-      lastMutationTimeRef.current = Date.now();
       try {
         let updatedJobsList = [];
         setJobs(prevJobs => {
@@ -704,7 +695,6 @@ export default function App() {
         });
         await saveSupabaseData('jobs', updatedJobsList);
       } finally {
-        lastMutationTimeRef.current = Date.now();
         isMutatingRef.current = false;
       }
     }
@@ -712,8 +702,6 @@ export default function App() {
 
   const handleSaveJobPaymentAndComplete = async (jobId, paymentDetailsArray, isCompleted) => {
     isMutatingRef.current = true;
-    lastMutationTimeRef.current = Date.now();
-    
     try {
       const totalPaid = paymentDetailsArray.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       let updatedJobsList = [];
@@ -742,7 +730,6 @@ export default function App() {
         alert('Ödeme bilgileri kaydedildi!');
       }
     } finally {
-      lastMutationTimeRef.current = Date.now();
       isMutatingRef.current = false;
     }
   };
@@ -750,7 +737,6 @@ export default function App() {
   const handleRevertJobToActive = async (jobId) => {
     if (confirm('Bu işi tekrar Aktif İşler listesine almak istediğinize emin misiniz?')) {
       isMutatingRef.current = true;
-      lastMutationTimeRef.current = Date.now();
       try {
         let updatedJobsList = [];
         setJobs(prevJobs => {
@@ -760,7 +746,6 @@ export default function App() {
         });
         await saveSupabaseData('jobs', updatedJobsList);
       } finally {
-        lastMutationTimeRef.current = Date.now();
         isMutatingRef.current = false;
       }
     }
@@ -2419,7 +2404,7 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           <button 
             type="button"
             onClick={() => sendWhatsAppMessage('completion', job)} 
-            className="w-blue-600 hover:bg-blue-700 text-white text-xs py-2.5 rounded-xl font-bold flex items-center justify-center space-x-1 shadow"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs py-2.5 rounded-xl font-bold flex items-center justify-center space-x-1 shadow"
           >
             <MessageSquare className="w-4 h-4" />
             <span>5. Fiş / Bitti WP</span>
