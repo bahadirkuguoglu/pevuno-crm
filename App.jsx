@@ -710,7 +710,7 @@ export default function App() {
       await syncWithCloud(true);
 
       if (isCompleted) {
-        alert('İş başarıyla tamamlandı ve arşivlendi!');
+        alert('İş başarıyla tamamlandı ve arşive taşındı!');
       } else {
         alert('Ödeme bilgileri kaydedildi!');
       }
