@@ -365,7 +365,7 @@ export default function App() {
     try {
       await saveSupabaseData(key, newValue);
     } finally {
-      setTimeout(() => { isMutatingRef.current = false; }, 2000);
+      setTimeout(() => { isMutatingRef.current = false; }, 3000);
     }
   };
 
@@ -389,7 +389,7 @@ export default function App() {
       if (type === 'banner') { setPortalBannerUrl(tempBannerInput); localStorage.setItem('pevuno_portal_banner', tempBannerInput); await saveSupabaseData('portal_banner', tempBannerInput); }
       alert('Şablon ve ayarlar başarıyla güncellendi!');
     } finally {
-      setTimeout(() => { isMutatingRef.current = false; }, 2000);
+      setTimeout(() => { isMutatingRef.current = false; }, 3000);
     }
   };
 
@@ -553,7 +553,7 @@ export default function App() {
       ]);
       alert('Müşteri başarıyla eklendi!');
     } finally {
-      setTimeout(() => { isMutatingRef.current = false; }, 2000);
+      setTimeout(() => { isMutatingRef.current = false; }, 3000);
     }
     setQuickName(''); setQuickPhone(''); setQuickAddress(''); setQuickTaxOffice(''); setQuickTaxNumber('');
   };
@@ -680,7 +680,7 @@ export default function App() {
       setActiveTab('jobs');
       alert('İş randevusu başarıyla oluşturuldu!');
     } finally {
-      setTimeout(() => { isMutatingRef.current = false; }, 2000);
+      setTimeout(() => { isMutatingRef.current = false; }, 3000);
     }
   };
 
@@ -693,7 +693,7 @@ export default function App() {
         localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
         await saveSupabaseData('jobs', updatedJobsList);
       } finally {
-        setTimeout(() => { isMutatingRef.current = false; }, 2000);
+        setTimeout(() => { isMutatingRef.current = false; }, 3000);
       }
     }
   };
@@ -726,7 +726,7 @@ export default function App() {
         alert('Ödeme bilgileri kaydedildi!');
       }
     } finally {
-      setTimeout(() => { isMutatingRef.current = false; }, 2000);
+      setTimeout(() => { isMutatingRef.current = false; }, 3000);
     }
   };
 
@@ -739,7 +739,7 @@ export default function App() {
         localStorage.setItem('pevuno_jobs', JSON.stringify(updatedJobsList));
         await saveSupabaseData('jobs', updatedJobsList);
       } finally {
-        setTimeout(() => { isMutatingRef.current = false; }, 2000);
+        setTimeout(() => { isMutatingRef.current = false; }, 3000);
       }
     }
   };
@@ -1171,7 +1171,7 @@ export default function App() {
                 return;
               }
               const chosenDetails = activeSelectedList.map(item => `${item.serviceName} x${item.qty}`).join(', ');
-              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~${calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
+              const msg = `Merhaba Pevuno Solution, web sitenizden fiyat hesapladım.\n\n👤 Ad Soyad: ${clientCustomerName}\n📞 Telefon: ${clientCustomerPhone}\n📍 Adres: ${clientCustomerAddress || 'Belirtilmedi'}\n🛠️ Seçilenler: ${chosenDetails || 'Seçilmedi'}\n💳 Toplam Tutar: ${calcSubTotal} TL\n⏱️ Tahmini Süre: ~{calcTotalDuration} dk\n\nRandevu oluşturmak istiyorum.`;
               window.open(`https://wa.me/${CORPORATE_WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank');
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center space-x-2"
