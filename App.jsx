@@ -38,12 +38,13 @@ async function fetchSupabaseData(key, defaultVal) {
         'Expires': '0'
       }
     });
-    if (!res.ok) throw new Error(`HTTP hata! Durum: ${res.status}`);
+    if (!res.ok) {
+      return defaultVal;
+    }
     const data = await res.json();
     if (data && data.length > 0 && data[0].value !== undefined) return data[0].value;
     return defaultVal;
   } catch (err) {
-    console.error("Supabase okuma hatası:", err);
     return defaultVal;
   }
 }
@@ -109,7 +110,7 @@ const DEFAULT_SERVICES = [
 
 const DEFAULT_PORTAL_BANNER = "https://i.ibb.co/wZnLyNBT/PVN-FL-10-11-2026.png";
 
-const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]* (ID: *[Müşteri No]*),\nEvinizde/iş yerinizde hijyeni her zaman üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨\nPeriyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, bu mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.\nSağlıklı ve hijyenik günler dileriz.\nPevuno Solution`;
+const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]* (ID: *[Müşteri No]*),\nEvinizde/iş yerinizde hijyeni her zaman üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨\nPeriyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, this mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.\nSağlıklı ve hijyenik günler dileriz.\nPevuno Solution`;
 
 const DEFAULT_REMINDER_TEMPLATE = `Merhaba *[Müşteri Adı]* (ID: *[Müşteri No]*),\nPevuno Solution ailesi olarak son profesyonel temizlik hizmetimizin üzerinden yaklaşık 6 ay geçtiğini fark ettik. Evinizde/iş yerinizde hijyeni tazelemek ve periyodik bakım randevusu oluşturmak ister misiniz? 🧼✨\nSağlıklı günler dileriz!`;
 
