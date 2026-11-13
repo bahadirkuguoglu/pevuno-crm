@@ -1636,7 +1636,7 @@ export default function App() {
                   <input 
                     type="text" 
                     required 
-                    placeholder="Örn: Mehmet Öz" 
+                    placeholder="Örn: Ahmet Yılmaz" 
                     value={newCustomerName} 
                     onChange={(e) => { setNewCustomerName(e.target.value); setShowCustomerSuggestions(true); }} 
                     onFocus={() => setShowCustomerSuggestions(true)}
