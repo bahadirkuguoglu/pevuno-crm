@@ -29,7 +29,7 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
 async function fetchSupabaseData(key, defaultVal) {
   try {
     const encodedKey = encodeURIComponent(key);
-    const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${encodedKey}&t=${Date.now()}`, {
+    const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${encodedKey}&select=value`, {
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -49,7 +49,6 @@ async function fetchSupabaseData(key, defaultVal) {
 
 async function saveSupabaseData(key, value) {
   try {
-    const encodedKey = encodeURIComponent(key);
     const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?on_conflict=key`, {
       method: 'POST',
       headers: {
@@ -61,7 +60,8 @@ async function saveSupabaseData(key, value) {
       body: JSON.stringify({ key, value })
     });
     if (!res.ok) {
-      const patchRes = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${encodedKey}`, {
+      const encodedKey = encodeURIComponent(key);
+      await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${encodedKey}`, {
         method: 'PATCH',
         headers: {
           'apikey': SUPABASE_KEY,
@@ -71,18 +71,6 @@ async function saveSupabaseData(key, value) {
         },
         body: JSON.stringify({ value })
       });
-      const patchData = await patchRes.json();
-      if (!patchData || patchData.length === 0) {
-        await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ key, value })
-        });
-      }
     }
     return true;
   } catch (err) {
@@ -304,7 +292,7 @@ export default function App() {
 
   useEffect(() => {
     syncWithCloud(true);
-    const interval = setInterval(() => { syncWithCloud(false); }, 3000);
+    const interval = setInterval(() => { syncWithCloud(false); }, 5000);
     const handleFocus = () => syncWithCloud(true);
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') syncWithCloud(true);
