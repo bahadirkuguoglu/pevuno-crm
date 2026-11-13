@@ -49,6 +49,7 @@ async function fetchSupabaseData(key, defaultVal) {
 
 async function saveSupabaseData(key, value) {
   try {
+    // Önce kayıt var mı kontrol et veya upsert yap
     const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?on_conflict=key`, {
       method: 'POST',
       headers: {
@@ -286,6 +287,7 @@ export default function App() {
         });
       }
       
+      // Buluttan gelen jobs verisini lokal state ile doğrudan eşitle
       if (cloudJobs && Array.isArray(cloudJobs)) { 
         setJobs(cloudJobs); 
         localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs)); 
@@ -678,6 +680,8 @@ export default function App() {
       ]);
       setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setHiddenWorkerNote(''); setAdminSelectedItems({}); setDiscountType('none'); setDiscountValue(0); setIncludeKdv(false); setSelectedWorkerDetails([]);
       setActiveTab('jobs');
+      // Kayıttan hemen sonra bulutu zorla tazele
+      await syncWithCloud(true);
     } finally {
       isMutatingRef.current = false;
     }
@@ -694,6 +698,7 @@ export default function App() {
           return updatedJobsList;
         });
         await saveSupabaseData('jobs', updatedJobsList);
+        await syncWithCloud(true);
       } finally {
         isMutatingRef.current = false;
       }
@@ -724,6 +729,9 @@ export default function App() {
         return updatedJobsList;
       });
       await saveSupabaseData('jobs', updatedJobsList);
+      // İşlem bittiğinde veriyi buluta tam olarak işleyip anında senkronize et
+      await syncWithCloud(true);
+
       if (isCompleted) {
         alert('İş başarıyla tamamlandı ve arşivlendi!');
       } else {
@@ -745,6 +753,7 @@ export default function App() {
           return updatedJobsList;
         });
         await saveSupabaseData('jobs', updatedJobsList);
+        await syncWithCloud(true);
       } finally {
         isMutatingRef.current = false;
       }
