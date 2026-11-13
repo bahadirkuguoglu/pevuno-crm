@@ -106,17 +106,23 @@ const DEFAULT_SERVICES = [
 ];
 
 const DEFAULT_PORTAL_BANNER = "https://i.ibb.co/wZnLyNBT/PVN-FL-10-11-2026.png";
+
 const DEFAULT_KVKK_TEMPLATE = `Merhaba *[Müşteri Adı]* (ID: *[Müşteri No]*),
 Evinizde/iş yerinizde hijyeni her zaman üst düzeyde tutabilmeniz için, son profesyonel temizliğinizin üzerinden geçecek olan *6 aylık periyotlarda size özel hatırlatma yapmamızı ve randevu oluşturmamızı ister misiniz?* 🧼✨
 Periyodik hatırlatmaların yapılabilmesi ve KVKK kapsamındaki bilgilendirmeyi kabul ediyorsanız, bu mesaja hemen *"ONAYLIYORUM"* yazarak yanıt verebilirsiniz.
 Sağlıklı ve hijyenik günler dileriz.
 Pevuno Solution`;
+
 const DEFAULT_REMINDER_TEMPLATE = `Merhaba *[Müşteri Adı]* (ID: *[Müşteri No]*),
 Pevuno Solution ailesi olarak son profesyonel temizlik hizmetimizin üzerinden yaklaşık 6 ay geçtiğini fark ettik. Evinizde/iş yerinizde hijyeni tazelemek ve periyodik bakım randevusu oluşturmak ister misiniz? 🧼✨
 Sağlıklı günler dileriz!`;
-const DEFAULT_APPOINTMENT_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO SOLUTION* profesyonel temizlik randevunuz başarıyla oluşturulmuştur! 🧼\n📋 *İş No:* [İş No]\n📅 *Tarih / Saat:* [Tarih] - [Saat]\n📍 *Adres:* [Adres]\n👷 *Görevli Ekip:* [Ekip]\n\n💳 *Toplam Tutar:* [Tutar] TL\n\nBelirtilen saatte görüşmek üzere iyi günler dileriz! 🌿`;
+
+const DEFAULT_APPOINTMENT_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO SOLUTION* profesyonel temizlik randevunuz başarıyla oluşturulmuştur! 🧼\n📋 *İş No:* [İş No]\n📅 *Tarih / Saat:* [Tarih] - [Saat]\n📍 *Adres:* [Adres]\n👷 *Görevli Ekip:* [Ekip]\n\n[İndirim Detayı]💳 *Toplam Tutar:* [Tutar] TL\n\nBelirtilen saatte görüşmek üzere iyi günler dileriz! 🌿`;
+
 const DEFAULT_ON_THE_WAY_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n🚗 *PEVUNO SOLUTION* ekibimiz (*[Ekip]*) adresinize doğru yola çıkmıştır.\n📋 *İş No:* [İş No]\n📍 *Adres:* [Adres]\n\nGörüşmek üzere! 🧼✨`;
-const DEFAULT_COMPLETION_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO SOLUTION* profesyonel temizlik hizmetimiz ve ödeme işleminiz tamamlanmıştır.\n📋 *İş No:* [İş No]\n👷 Ekibimiz: *[Ekip]*\n💳 *Tahsil Edilen Tutar:* [Tutar] TL ([Ödeme Türü])\n\nBizi tercih ettiğiniz için teşekkür ederiz! 🧼🚿`;
+
+const DEFAULT_COMPLETION_TEMPLATE = `Merhaba *[Müşteri Adı]*,\n\n✨ *PEVUNO SOLUTION* profesyonel temizlik hizmetimiz ve ödeme işleminiz tamamlanmıştır.\n📋 *İş No:* [İş No]\n👷 Ekibimiz: *[Ekip]*\n[İndirim Detayı]💳 *Tahsil Edilen Tutar:* [Tutar] TL ([Ödeme Türü])\n\nBizi tercih ettiğiniz için teşekkür ederiz! 🧼🚿`;
+
 const DEFAULT_WORKER_ASSIGN_TEMPLATE = `Merhaba *[Personel Adı]*,\n\nYeni bir iş ataması yapılmıştır! 🧼\n📋 *İş No:* [İş No]\n👤 *Müşteri:* [Müşteri Adı] ([Telefon])\n📍 *Adres:* [Adres]\n📅 *Tarih/Saat:* [Tarih] - [Saat]\n🛠️ *Hizmetler:* [Hizmetler]\n💵 *Hakedişiniz:* [Hakediş] TL\n\nİyi çalışmalar!`;
 
 const formatDateTR = (dateStr) => {
@@ -126,6 +132,44 @@ const formatDateTR = (dateStr) => {
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
   }
   return dateStr;
+};
+
+const getJobFinancialBreakdown = (job) => {
+  if (!job) {
+    return { subtotal: 0, discountAmount: 0, discountLabel: '', kdvAmount: 0, totalAmount: 0 };
+  }
+  const itemsTotal = Array.isArray(job.items)
+    ? job.items.reduce((sum, item) => sum + ((Number(item.qty) || 0) * (Number(item.unitPrice) || 0)), 0)
+    : 0;
+  const totalAmount = Number(job.totalAmount) || 0;
+  const subtotal = Number(job.subtotal) || itemsTotal || totalAmount;
+  const explicitDiscount = Number(job.discountAmount) || 0;
+  const kdvAmount = job.includeKdv ? (Number(job.kdvAmount) || 0) : 0;
+
+  let discountAmount = explicitDiscount;
+  if (discountAmount <= 0 && !job.includeKdv && subtotal > totalAmount) {
+    discountAmount = subtotal - totalAmount;
+  }
+
+  let discountLabel = '';
+  if (discountAmount > 0) {
+    if (job.discountType === 'percent' && Number(job.discountValue) > 0) {
+      discountLabel = `%${Number(job.discountValue)}`;
+    } else if (subtotal > 0) {
+      const approxPercent = Math.round((discountAmount / subtotal) * 100);
+      if (approxPercent > 0 && Math.abs((subtotal * approxPercent) / 100 - discountAmount) < 1) {
+        discountLabel = `%${approxPercent}`;
+      }
+    }
+  }
+
+  return {
+    subtotal,
+    discountAmount,
+    discountLabel,
+    kdvAmount,
+    totalAmount
+  };
 };
 
 export default function App() {
@@ -140,7 +184,6 @@ export default function App() {
   const [showPortalDirectly, setShowPortalDirectly] = useState(false);
   const [isSynced, setIsSynced] = useState(false);
   const receiptRef = useRef(null);
-
   const isMutatingRef = useRef(false);
   const lastMutationTimeRef = useRef(0);
 
@@ -204,10 +247,8 @@ export default function App() {
     if (!force && (isMutatingRef.current || (Date.now() - lastMutationTimeRef.current < 4000))) {
       return;
     }
-
     setIsSynced(false);
     const syncStartTime = Date.now();
-
     try {
       const [
         cloudCats,
@@ -305,6 +346,7 @@ export default function App() {
   const [newNote, setNewNote] = useState('');
   const [hiddenWorkerNote, setHiddenWorkerNote] = useState('');
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+
   const [customerType, setCustomerType] = useState('bireysel');
   const [quickName, setQuickName] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
@@ -325,6 +367,7 @@ export default function App() {
   const [newWorkerRole, setNewWorkerRole] = useState('worker');
   const [newWorkerPhone, setNewWorkerPhone] = useState('');
   const [editingWorkerId, setEditingWorkerId] = useState(null);
+
   const [newCategoryCustomInput, setNewCategoryCustomInput] = useState('');
   const [showCustomCategoryInput, setShowCustomCategoryInput] = useState(false);
   const [newService, setNewService] = useState({ category: DEFAULT_CATEGORIES[0], name: '', price: '', unit: 'adet', durationMinutes: 30 });
@@ -414,6 +457,7 @@ export default function App() {
   let adminSubtotal = 0;
   let adminTotalDuration = 0;
   const adminActiveSelectedList = [];
+
   Object.entries(adminSelectedItems).forEach(([baseKey, qty]) => {
     if (qty <= 0) return;
     const [catName, baseName] = baseKey.split('__');
@@ -439,7 +483,6 @@ export default function App() {
     if (discountType === 'percent') return (adminSubtotal * (Number(discountValue) || 0)) / 100;
     return 0;
   };
-
   const adminCalculatedDiscount = calculateAdminDiscount();
   const adminAmountAfterDiscount = Math.max(0, adminSubtotal - adminCalculatedDiscount);
   const adminKdvAmount = includeKdv ? adminAmountAfterDiscount * 0.20 : 0;
@@ -506,7 +549,6 @@ export default function App() {
     
     const assignedId = `CUST-${nextCustIdNum}`;
     const nextNum = nextCustIdNum + 1;
-
     const newCustObj = {
       id: assignedId,
       name: quickName,
@@ -566,6 +608,7 @@ export default function App() {
         await updateCategories([...categories, targetCat]);
       }
     }
+
     const duration = Number(newService.durationMinutes) || 30;
     if (editingServiceId) {
       await updateServices(services.map(s => s.id === editingServiceId ? { ...s, category: targetCat, name: newService.name, price: Number(newService.price), unit: newService.unit, durationMinutes: duration } : s));
@@ -587,7 +630,6 @@ export default function App() {
 
     isMutatingRef.current = true;
     lastMutationTimeRef.current = Date.now();
-
     try {
       const matchedCust = customers.find(c => c.phone === newCustomerPhone);
       let customerId = matchedCust ? matchedCust.id : `CUST-${nextCustIdNum}`;
@@ -724,7 +766,6 @@ export default function App() {
       });
 
       await saveSupabaseData('jobs', updatedJobsList);
-
       if (isCompleted) {
         alert('İş başarıyla tamamlandı ve arşivlendi!');
       } else {
@@ -841,6 +882,7 @@ export default function App() {
         alert("Görsel oluşturulurken bir hata oluştu.");
       });
     };
+
     if (!window.html2canvas) {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
@@ -857,8 +899,17 @@ export default function App() {
     const custId = data.customerId || 'CUST-0000';
     const jobId = data.id || 'JOB-0000';
     const dateFormatted = formatDateTR(data.date);
+    const fin = getJobFinancialBreakdown(data);
+    const discountDetailLine = fin.discountAmount > 0
+      ? `💰 *Ara Toplam:* ${fin.subtotal} TL\n🏷️ *Uygulanan İndirim${fin.discountLabel ? ` (${fin.discountLabel})` : ''}:* -${fin.discountAmount} TL\n`
+      : '';
+
     if (type === 'appointment') {
-      msg = appointmentTemplate
+      let tpl = appointmentTemplate;
+      if (fin.discountAmount > 0 && !tpl.includes('[İndirim Detayı]') && !tpl.includes('[İndirim]')) {
+        tpl = tpl.replace(/💳 \*Toplam Tutar:\*/g, `[İndirim Detayı]💳 *Toplam Tutar:*`);
+      }
+      msg = tpl
         .replace(/\[Müşteri Adı\]/g, data.customerName)
         .replace(/\[Müşteri No\]/g, custId)
         .replace(/\[İş No\]/g, jobId)
@@ -866,6 +917,9 @@ export default function App() {
         .replace(/\[Saat\]/g, data.time || '10:00')
         .replace(/\[Adres\]/g, data.address)
         .replace(/\[Ekip\]/g, assignedText)
+        .replace(/\[Ara Toplam\]/g, fin.subtotal)
+        .replace(/\[İndirim\]/g, fin.discountAmount)
+        .replace(/\[İndirim Detayı\]/g, discountDetailLine)
         .replace(/\[Tutar\]/g, data.totalAmount);
     } else if (type === 'ontheway') {
       msg = onTheWayTemplate
@@ -878,11 +932,18 @@ export default function App() {
       const paySummary = data.paymentDetails && data.paymentDetails.length > 0 
         ? data.paymentDetails.map(p => `${p.amount} TL (${p.method})`).join(', ') 
         : `${data.paidAmount || data.totalAmount} TL`;
-      msg = completionTemplate
+      let tpl = completionTemplate;
+      if (fin.discountAmount > 0 && !tpl.includes('[İndirim Detayı]') && !tpl.includes('[İndirim]')) {
+        tpl = tpl.replace(/💳 \*Tahsil Edilen Tutar:\*/g, `[İndirim Detayı]💳 *Tahsil Edilen Tutar:*`);
+      }
+      msg = tpl
         .replace(/\[Müşteri Adı\]/g, data.customerName)
         .replace(/\[Müşteri No\]/g, custId)
         .replace(/\[İş No\]/g, jobId)
         .replace(/\[Ekip\]/g, assignedText)
+        .replace(/\[Ara Toplam\]/g, fin.subtotal)
+        .replace(/\[İndirim\]/g, fin.discountAmount)
+        .replace(/\[İndirim Detayı\]/g, discountDetailLine)
         .replace(/\[Tutar\]/g, data.totalAmount)
         .replace(/\[Ödeme Türü\]/g, paySummary);
     } else if (type === 'kvkk') {
@@ -907,6 +968,9 @@ export default function App() {
         .replace(/\[Tarih\]/g, dateFormatted)
         .replace(/\[Saat\]/g, data.time || '10:00')
         .replace(/\[Hizmetler\]/g, itemsText)
+        .replace(/\[Ara Toplam\]/g, fin.subtotal)
+        .replace(/\[İndirim\]/g, fin.discountAmount)
+        .replace(/\[Tutar\]/g, data.totalAmount)
         .replace(/\[Hakediş\]/g, hakedisVal);
         
       const targetWorkerObj = workers.find(w => w.name === targetWorkerName);
@@ -918,6 +982,7 @@ export default function App() {
         return;
       }
     }
+
     const encoded = encodeURIComponent(msg);
     const cleanPhone = (data.phone || '').replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('0') ? `9${cleanPhone}` : cleanPhone.startsWith('90') ? cleanPhone : `90${cleanPhone}`;
@@ -1003,6 +1068,7 @@ export default function App() {
     let calcSubTotal = 0;
     let calcTotalDuration = 0;
     const activeSelectedList = [];
+
     Object.entries(clientSelectedItems).forEach(([baseKey, qty]) => {
       if (qty <= 0) return;
       const [catName, baseName] = baseKey.split('__');
@@ -1032,6 +1098,7 @@ export default function App() {
               <img src={portalBannerUrl} alt="Pevuno Banner" className="w-full h-auto object-cover max-h-56" />
             </div>
           )}
+
           <div className="text-center space-y-2 border-b pb-4">
             <h2 className="text-2xl font-black text-slate-900 tracking-wider">PEVUNO SOLUTION</h2>
             <p className="text-xs text-slate-500 font-medium">Hızlı Fiyat Hesaplama & Canlı Teklif Ekranı</p>
@@ -1058,6 +1125,7 @@ export default function App() {
                     const qty = clientSelectedItems[baseKey] || 0;
                     const currentVariantName = clientSelectedVariants[baseKey] || variants[0]?.name;
                     const activeVariant = variants.find(v => v.name === currentVariantName) || variants[0];
+
                     return (
                       <div key={baseKey} className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-sm space-y-3">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1090,6 +1158,7 @@ export default function App() {
                             >+</button>
                           </div>
                         </div>
+
                         {variants.length > 1 && (
                           <div className="pt-2 border-t flex flex-wrap gap-1.5 items-center">
                             <span className="text-[10px] font-bold text-slate-500 uppercase">Paket:</span>
@@ -1212,12 +1281,15 @@ export default function App() {
 
   const cleanCurrentUserName = getCleanDisplayName(currentUser.name);
   const roleDisplay = currentUser.role === 'admin' ? 'Yönetici' : 'Personel';
+
   const groupedServicesMap = services.reduce((acc, srv) => {
     const cat = srv.category || 'Genel Alanlar';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(srv);
     return acc;
   }, {});
+
+  const receiptBreakdown = selectedJobForReceipt ? getJobFinancialBreakdown(selectedJobForReceipt) : null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
@@ -1240,6 +1312,7 @@ export default function App() {
             </button>
           </div>
         </div>
+
         <div className="bg-slate-800 border-t border-slate-700 w-full overflow-x-auto scrollbar-none">
           <div className="max-w-7xl mx-auto px-4 flex justify-start sm:justify-center space-x-2 text-sm py-1">
             {currentUser.role === 'admin' && (
@@ -1364,16 +1437,24 @@ export default function App() {
                 <span>Sıradaki Aktive Edilmiş İşler ({activeJobsList.length})</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {activeJobsList.slice(0, 4).map((job) => (
-                  <div key={job.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
-                    <div className="flex justify-between font-bold text-slate-900">
-                      <span>#{job.id} - {job.customerName}</span>
-                      <span className="text-emerald-700">{formatDateTR(job.date)} | {job.time}</span>
+                {activeJobsList.slice(0, 4).map((job) => {
+                  const fin = getJobFinancialBreakdown(job);
+                  return (
+                    <div key={job.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
+                      <div className="flex justify-between font-bold text-slate-900">
+                        <span>#{job.id} - {job.customerName}</span>
+                        <span className="text-emerald-700">{formatDateTR(job.date)} | {job.time}</span>
+                      </div>
+                      <p className="text-slate-600">📍 {job.address}</p>
+                      <p className="text-purple-700 font-bold">
+                        👷 Ekip: {formatWorkerNameMasked(job.assignedWorkers)} | Tutar: {job.totalAmount} TL
+                        {fin.discountAmount > 0 && (
+                          <span className="text-rose-600 ml-1.5">(İndirim: -{fin.discountAmount} TL)</span>
+                        )}
+                      </p>
                     </div>
-                    <p className="text-slate-600">📍 {job.address}</p>
-                    <p className="text-purple-700 font-bold">👷 Ekip: {formatWorkerNameMasked(job.assignedWorkers)} | Tutar: {job.totalAmount} TL</p>
-                  </div>
-                ))}
+                  );
+                })}
                 {activeJobsList.length === 0 && (
                   <p className="text-xs text-slate-400">Şu an sırada bekleyen aktif iş bulunmuyor.</p>
                 )}
@@ -1388,6 +1469,7 @@ export default function App() {
               <h2 className="text-2xl font-black">Hoş Geldin, {cleanCurrentUserName} 👷</h2>
               <p className="text-xs text-slate-300">Saha Personeli Performans, Tamamlanan İş Sayısı ve Kazanç Paneli</p>
             </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
                 <span className="text-[11px] font-bold text-slate-400 uppercase">Tamamladığım İş</span>
@@ -1410,16 +1492,19 @@ export default function App() {
                 <div className="text-lg font-black text-teal-600">{workerTotalEarned} TL</div>
               </div>
             </div>
+
             <div className="flex justify-between items-center bg-slate-900 text-white p-4 rounded-2xl shadow">
               <h2 className="text-lg font-bold flex items-center space-x-2">
                 <Navigation className="w-5 h-5 text-emerald-400" />
                 <span>Atanan Aktif İşlerim ve Saha Adımları</span>
               </h2>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedJobsForUser.filter(job => !isCompletedStatus(job.status)).map((job, index) => {
                 const estEndTime = calculateEstimatedEndTime(job.time, job.estimatedDurationMinutes);
                 const myHakedisDetail = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+
                 return (
                   <ChronologicalJobCardItem 
                     key={job.id} 
@@ -1451,10 +1536,12 @@ export default function App() {
                 <span>Aktif İşler & Adım Adım Kronolojik Saha Akışı</span>
               </h2>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedJobsForUser.filter(job => !isCompletedStatus(job.status)).map((job, index) => {
                 const estEndTime = calculateEstimatedEndTime(job.time, job.estimatedDurationMinutes);
                 const myHakedisDetail = job.workerHakedisDetails?.find(w => w.workerName === currentUser.name);
+
                 return (
                   <ChronologicalJobCardItem 
                     key={job.id} 
@@ -1490,6 +1577,7 @@ export default function App() {
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {completedJobsList
                 .filter(job => {
@@ -1500,30 +1588,40 @@ export default function App() {
                     job.id?.toLowerCase().includes(q)
                   );
                 })
-                .map((job) => (
-                  <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-200 space-y-4">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                      <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-lg">#{job.id} | TAMAMLANDI</span>
-                      <div className="flex items-center space-x-1">
-                        <button type="button" onClick={() => handleRevertJobToActive(job.id)} className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Aktife Taşı</span>
-                        </button>
-                        <button type="button" onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                .map((job) => {
+                  const fin = getJobFinancialBreakdown(job);
+                  return (
+                    <div key={job.id} className="bg-white rounded-2xl p-5 shadow-sm border border-emerald-200 space-y-4">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-2.5 py-1 rounded-lg">#{job.id} | TAMAMLANDI</span>
+                        <div className="flex items-center space-x-1">
+                          <button type="button" onClick={() => handleRevertJobToActive(job.id)} className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 text-xs font-bold px-2.5 py-1 rounded-lg flex items-center space-x-1">
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Aktife Taşı</span>
+                          </button>
+                          <button type="button" onClick={() => handleDeleteJob(job.id)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-slate-900">{job.customerName}</h3>
+                        <p className="text-xs text-blue-600 font-bold mt-0.5">📞 {job.phone}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">📍 {job.address}</p>
+                        <p className="text-xs text-emerald-700 font-medium mt-1">👷 Ekip: {formatWorkerNameMasked(job.assignedWorkers)} | Tahsil Edilen: {job.paidAmount} TL</p>
+                      </div>
+                      <div className="pt-2 border-t flex justify-between items-center text-xs gap-2">
+                        <div className="space-y-0.5">
+                          {fin.discountAmount > 0 && (
+                            <div className="text-[11px] text-rose-600 font-semibold">
+                              Ara Toplam: {fin.subtotal} TL | İndirim{fin.discountLabel ? ` (${fin.discountLabel})` : ''}: -{fin.discountAmount} TL
+                            </div>
+                          )}
+                          <span className="font-bold text-slate-700 block">Toplam Tutar: {job.totalAmount} TL</span>
+                        </div>
+                        <button type="button" onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg border shrink-0">Servis Fişi</button>
                       </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-slate-900">{job.customerName}</h3>
-                      <p className="text-xs text-blue-600 font-bold mt-0.5">📞 {job.phone}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">📍 {job.address}</p>
-                      <p className="text-xs text-emerald-700 font-medium mt-1">👷 Ekip: {formatWorkerNameMasked(job.assignedWorkers)} | Tahsil Edilen: {job.paidAmount} TL</p>
-                    </div>
-                    <div className="pt-2 border-t flex justify-between items-center text-xs">
-                      <span className="font-bold text-slate-700">Toplam Tutar: {job.totalAmount} TL</span>
-                      <button type="button" onClick={() => setSelectedJobForReceipt(job)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-1.5 rounded-lg border">Servis Fişi</button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </div>
         )}
@@ -1559,6 +1657,7 @@ export default function App() {
                   <label className="block text-xs font-bold text-slate-600 mb-1">Telefon Numarası *</label>
                   <input type="text" required placeholder="Örn: 05321234567" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm" />
                 </div>
+
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-slate-600 mb-1">Gidecek Personeller & Manuel Hakediş Tutarları *</label>
                   <div className="border border-slate-300 rounded-xl p-3 bg-white space-y-2">
@@ -1607,6 +1706,7 @@ export default function App() {
                   <label className="block text-xs font-bold text-slate-600 mb-1">Açık Adres *</label>
                   <textarea rows={3} required placeholder="İlçe, Mahalle, Cadde, Bina No, Daire..." value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm bg-white" />
                 </div>
+
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-indigo-700 mb-1">🔒 Gizli Saha Notu (Müşteriye WhatsApp mesajlarında GİTMEZ)</label>
                   <textarea rows={2} placeholder="Örn: Yerler ıslanmasın, evde kedi var, hassas kumaş..." value={hiddenWorkerNote} onChange={(e) => setHiddenWorkerNote(e.target.value)} className="w-full border border-indigo-200 bg-indigo-50/50 rounded-xl px-3.5 py-2 text-xs" />
@@ -1627,6 +1727,7 @@ export default function App() {
                         const qty = adminSelectedItems[baseKey] || 0;
                         const currentVariantName = adminSelectedVariants[baseKey] || variants[0]?.name;
                         const activeVariant = variants.find(v => v.name === currentVariantName) || variants[0];
+
                         return (
                           <div key={baseKey} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-sm space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1659,6 +1760,7 @@ export default function App() {
                                 >+</button>
                               </div>
                             </div>
+
                             {variants.length > 1 && (
                               <div className="pt-2 border-t flex flex-wrap gap-1.5 items-center">
                                 <span className="text-[10px] font-bold text-slate-500 uppercase">Paket:</span>
@@ -1698,6 +1800,7 @@ export default function App() {
                         ⏱️ Toplam Süre: ~{adminTotalDuration} dk
                       </span>
                     </div>
+
                     <div className="bg-white p-3 rounded-xl border flex flex-col sm:flex-row items-center gap-3">
                       <div className="w-full sm:w-auto">
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">İndirim Türü</label>
@@ -1727,6 +1830,7 @@ export default function App() {
                         </div>
                       )}
                     </div>
+
                     <div className="bg-white p-3 rounded-xl border flex items-center justify-between">
                       <label className="flex items-center space-x-2 text-xs font-bold text-slate-800 cursor-pointer">
                         <input 
@@ -1739,12 +1843,18 @@ export default function App() {
                       </label>
                       <span className="text-[11px] text-slate-400">İşlerin %99'unda kapalıdır</span>
                     </div>
+
                     <div className="bg-white p-3 rounded-xl border text-right space-y-1">
                       <span className="text-xs text-slate-500 block">Ara Toplam: {adminSubtotal} TL</span>
-                      {discountType !== 'none' && <span className="text-xs text-rose-500 block">Uygulanan İndirim: -{adminCalculatedDiscount} TL</span>}
+                      {discountType !== 'none' && (
+                        <span className="text-xs text-rose-500 block">
+                          Uygulanan İndirim{discountType === 'percent' && Number(discountValue) > 0 ? ` (%${discountValue})` : ''}: -{adminCalculatedDiscount} TL
+                        </span>
+                      )}
                       {includeKdv && <span className="text-xs text-blue-600 block">KDV (%20): +{adminKdvAmount} TL</span>}
                       <span className="text-base font-black text-emerald-700 block pt-1 border-t">Ödenecek Net Tutar: {adminFinalTotal} TL</span>
                     </div>
+
                     {adminActiveSelectedList.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between bg-white p-2.5 rounded-xl border text-sm">
                         <span>{item.serviceName} x{item.qty}</span>
@@ -1779,6 +1889,7 @@ export default function App() {
                   <span>Müşteri & Kurumsal Firma Yönetimi</span>
                 </h2>
               </div>
+
               <form onSubmit={handleAddCustomer} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
@@ -1797,6 +1908,7 @@ export default function App() {
                     <input type="text" required placeholder="0532..." value={quickPhone} onChange={(e) => setQuickPhone(e.target.value)} className="w-full border rounded-xl px-3 py-2 text-sm bg-white" />
                   </div>
                 </div>
+
                 {customerType === 'kurumsal' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t">
                     <div>
@@ -1809,12 +1921,15 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Açık Adres *</label>
                   <textarea rows={3} placeholder="İlçe, Mahalle, Cadde, Bina No, Daire..." value={quickAddress} onChange={(e) => setQuickAddress(e.target.value)} className="w-full border rounded-xl px-3.5 py-2.5 text-sm bg-white" />
                 </div>
+
                 <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm shadow">Müşteriyi Kaydet 🚀</button>
               </form>
+
               <div className="space-y-3">
                 <input 
                   type="text" 
@@ -1944,14 +2059,17 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
                 <div className="sm:col-span-3">
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Hizmet Adı *</label>
                   <input type="text" required placeholder="Örn: Essential | Tek Kişilik Yatak Yıkama" value={newService.name} onChange={(e) => setNewService({ ...newService, name: e.target.value })} className="w-full border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 </div>
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Fiyat (TL) *</label>
                   <input type="number" required placeholder="TL" value={newService.price} onChange={(e) => setNewService({ ...newService, price: e.target.value })} className="w-full border rounded-xl px-3.5 py-2 text-sm bg-white" />
                 </div>
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Birim *</label>
                   <select value={newService.unit} onChange={(e) => setNewService({ ...newService, unit: e.target.value })} className="w-full border rounded-xl px-3 py-2 text-sm bg-white font-bold">
@@ -1960,10 +2078,12 @@ export default function App() {
                     <option value="m²">m²</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Süre (Dakika) *</label>
                   <input type="number" required placeholder="dk" value={newService.durationMinutes} onChange={(e) => setNewService({ ...newService, durationMinutes: e.target.value })} className="w-full border rounded-xl px-3 py-2 text-sm bg-white" />
                 </div>
+
                 <div className="sm:col-span-2 flex items-end">
                   <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 text-sm rounded-xl shadow">
                     {editingServiceId ? 'Hizmeti Güncelle 🔄' : 'Yeni Hizmet Ekle 🚀'}
@@ -2048,6 +2168,7 @@ export default function App() {
               </div>
               <div className="bg-white rounded-2xl p-6 shadow-sm border space-y-3">
                 <h3 className="text-sm font-bold text-slate-900">Randevu Onay Mesajı Şablonu</h3>
+                <p className="text-[11px] text-slate-500">Kullanılabilir etiketler: [Müşteri Adı], [İş No], [Tarih], [Saat], [Adres], [Ekip], [İndirim Detayı], [Ara Toplam], [İndirim], [Tutar]</p>
                 <form onSubmit={(e) => handleSaveTemplates(e, 'appointment')} className="space-y-2">
                   <textarea rows={4} value={tempAppointmentInput} onChange={(e) => setTempAppointmentInput(e.target.value)} className="w-full border rounded-xl p-3 text-xs font-mono bg-slate-50" />
                   <button type="submit" className="w-full bg-purple-600 text-white font-bold py-2 rounded-xl text-xs shadow">Randevu Şablonunu Kaydet</button>
@@ -2055,6 +2176,7 @@ export default function App() {
               </div>
               <div className="bg-white rounded-2xl p-6 shadow-sm border space-y-3">
                 <h3 className="text-sm font-bold text-slate-900">Yola Çıkıldı / Servis Bitti Şablonları</h3>
+                <p className="text-[11px] text-slate-500">Servis Bitti etiketleri: [Müşteri Adı], [İş No], [Ekip], [İndirim Detayı], [Ara Toplam], [İndirim], [Tutar], [Ödeme Türü]</p>
                 <form onSubmit={(e) => handleSaveTemplates(e, 'ontheway')} className="space-y-2">
                   <textarea rows={2} value={tempOnTheWayInput} onChange={(e) => setTempOnTheWayInput(e.target.value)} className="w-full border rounded-xl p-2.5 text-[11px] font-mono bg-slate-50" />
                   <textarea rows={2} value={tempCompletionInput} onChange={(e) => setTempCompletionInput(e.target.value)} className="w-full border rounded-xl p-2.5 text-[11px] font-mono bg-slate-50" />
@@ -2096,7 +2218,7 @@ export default function App() {
         )}
       </main>
 
-      {selectedJobForReceipt && (
+      {selectedJobForReceipt && receiptBreakdown && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 my-8">
             <div ref={receiptRef} className="bg-white p-4 border rounded-2xl space-y-4">
@@ -2125,16 +2247,18 @@ export default function App() {
                 </table>
               </div>
               <div className="pt-2 border-t text-right space-y-1 text-xs">
-                <p className="text-slate-500">Ara Toplam: <span className="font-bold text-slate-800">{selectedJobForReceipt.subtotal || selectedJobForReceipt.totalAmount} TL</span></p>
-                {selectedJobForReceipt.discountAmount > 0 && (
-                  <p className="text-rose-600">Uygulanan İndirim: <span className="font-bold">-{selectedJobForReceipt.discountAmount} TL</span></p>
+                <p className="text-slate-500">Ara Toplam: <span className="font-bold text-slate-800">{receiptBreakdown.subtotal} TL</span></p>
+                {receiptBreakdown.discountAmount > 0 && (
+                  <p className="text-rose-600 font-semibold">
+                    Uygulanan İndirim{receiptBreakdown.discountLabel ? ` (${receiptBreakdown.discountLabel})` : ''}: <span className="font-bold">-{receiptBreakdown.discountAmount} TL</span>
+                  </p>
                 )}
-                {selectedJobForReceipt.includeKdv && selectedJobForReceipt.kdvAmount > 0 && (
-                  <p className="text-blue-600">KDV (%20): <span className="font-bold">+{selectedJobForReceipt.kdvAmount} TL</span></p>
+                {selectedJobForReceipt.includeKdv && receiptBreakdown.kdvAmount > 0 && (
+                  <p className="text-blue-600">KDV (%20): <span className="font-bold">+{receiptBreakdown.kdvAmount} TL</span></p>
                 )}
                 <div className="pt-1 border-t">
                   <span className="text-slate-500 font-medium">Toplam Tutar</span>
-                  <p className="text-xl font-black text-emerald-700">{selectedJobForReceipt.totalAmount} TL</p>
+                  <p className="text-xl font-black text-emerald-700">{receiptBreakdown.totalAmount} TL</p>
                 </div>
               </div>
             </div>
@@ -2184,6 +2308,7 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
   const encodedAddress = encodeURIComponent(job.address || '');
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
   const yandexMapsUrl = `https://yandex.com.tr/harita/?text=${encodedAddress}`;
+  const fin = getJobFinancialBreakdown(job);
 
   const onSaveClick = async (isCompleted) => {
     if (isSubmitting) return;
@@ -2206,6 +2331,7 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           <p className="text-xs text-blue-600 font-bold">📞 {job.phone} <span className="text-slate-400 font-normal">(ID: {job.customerId})</span></p>
         </div>
       </div>
+
       <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-800 space-y-1 font-bold">
         <div className="flex justify-between items-center">
           <span>📅 Tarih: {formattedDate}</span>
@@ -2251,6 +2377,20 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
             <span className="font-semibold">{item.qty * item.unitPrice} TL</span>
           </div>
         ))}
+        <div className="pt-1.5 mt-1 border-t border-slate-200 space-y-0.5 text-right">
+          {fin.discountAmount > 0 && (
+            <>
+              <div className="text-slate-500">Ara Toplam: <span className="font-bold text-slate-700">{fin.subtotal} TL</span></div>
+              <div className="text-rose-600 font-bold">
+                Uygulanan İndirim{fin.discountLabel ? ` (${fin.discountLabel})` : ''}: -{fin.discountAmount} TL
+              </div>
+            </>
+          )}
+          {job.includeKdv && fin.kdvAmount > 0 && (
+            <div className="text-blue-600">KDV (%20): <span className="font-bold">+{fin.kdvAmount} TL</span></div>
+          )}
+          <div className="text-emerald-700 font-black">Net Toplam: {fin.totalAmount} TL</div>
+        </div>
       </div>
 
       <div className="space-y-3 pt-2 border-t">
