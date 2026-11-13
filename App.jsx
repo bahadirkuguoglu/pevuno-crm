@@ -20,7 +20,7 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
   } catch (error) {
     clearTimeout(timer);
     if (error.name === 'AbortError') {
-      throw new Error('Bağlantı zaman aşımına uğradı. Lütfen internetinizi kontrol edin.');
+      throw new Error('Bağlantı zaman aşımına uğradı.');
     }
     throw error;
   }
@@ -38,9 +38,7 @@ async function fetchSupabaseData(key, defaultVal) {
         'Expires': '0'
       }
     });
-    if (!res.ok) {
-      return defaultVal;
-    }
+    if (!res.ok) return defaultVal;
     const data = await res.json();
     if (data && data.length > 0 && data[0].value !== undefined) return data[0].value;
     return defaultVal;
@@ -157,13 +155,7 @@ const getJobFinancialBreakdown = (job) => {
       }
     }
   }
-  return {
-    subtotal,
-    discountAmount,
-    discountLabel,
-    kdvAmount,
-    totalAmount
-  };
+  return { subtotal, discountAmount, discountLabel, kdvAmount, totalAmount };
 };
 
 export default function App() {
@@ -237,9 +229,7 @@ export default function App() {
   const currentMonth = now.getMonth();
 
   const syncWithCloud = useCallback(async (force = false) => {
-    if (!force && isMutatingRef.current) {
-      return;
-    }
+    if (!force && isMutatingRef.current) return;
     setIsSynced(false);
     try {
       const [
