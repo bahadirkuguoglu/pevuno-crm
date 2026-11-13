@@ -28,7 +28,8 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
 
 async function fetchSupabaseData(key, defaultVal) {
   try {
-    const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}&t=${Date.now()}`, {
+    const encodedKey = encodeURIComponent(key);
+    const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${encodedKey}&t=${Date.now()}`, {
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -49,7 +50,7 @@ async function fetchSupabaseData(key, defaultVal) {
 
 async function saveSupabaseData(key, value) {
   try {
-    // Önce kayıt var mı kontrol et veya upsert yap
+    const encodedKey = encodeURIComponent(key);
     const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?on_conflict=key`, {
       method: 'POST',
       headers: {
@@ -61,7 +62,7 @@ async function saveSupabaseData(key, value) {
       body: JSON.stringify({ key, value })
     });
     if (!res.ok) {
-      const patchRes = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${key}`, {
+      const patchRes = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/app_data?key=eq.${encodedKey}`, {
         method: 'PATCH',
         headers: {
           'apikey': SUPABASE_KEY,
@@ -287,7 +288,6 @@ export default function App() {
         });
       }
       
-      // Buluttan gelen jobs verisini lokal state ile doğrudan eşitle
       if (cloudJobs && Array.isArray(cloudJobs)) { 
         setJobs(cloudJobs); 
         localStorage.setItem('pevuno_jobs', JSON.stringify(cloudJobs)); 
@@ -680,7 +680,6 @@ export default function App() {
       ]);
       setNewCustomerName(''); setNewCustomerPhone(''); setNewAddress(''); setNewNote(''); setHiddenWorkerNote(''); setAdminSelectedItems({}); setDiscountType('none'); setDiscountValue(0); setIncludeKdv(false); setSelectedWorkerDetails([]);
       setActiveTab('jobs');
-      // Kayıttan hemen sonra bulutu zorla tazele
       await syncWithCloud(true);
     } finally {
       isMutatingRef.current = false;
@@ -729,7 +728,6 @@ export default function App() {
         return updatedJobsList;
       });
       await saveSupabaseData('jobs', updatedJobsList);
-      // İşlem bittiğinde veriyi buluta tam olarak işleyip anında senkronize et
       await syncWithCloud(true);
 
       if (isCompleted) {
@@ -2420,14 +2418,14 @@ function ChronologicalJobCardItem({ job, index, estEndTime, myHakedisDetail, cur
           </button>
         </div>
         <button 
-          type="button"
-          disabled={isSubmitting}
-          onClick={() => onSaveClick(true)} 
-          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl shadow-lg flex items-center justify-center space-x-2 transition"
-        >
-          <CheckCircle2 className="w-4 h-4" />
-          <span>{isSubmitting ? '⏳ İşlem Tamamlanıyor...' : '6. Adım: İşlemi Tamamla ve Arşive Gönder ✅'}</span>
-        </button>
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => onSaveClick(true)} 
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs py-3 rounded-xl shadow-lg flex items-center justify-center space-x-2 transition"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{isSubmitting ? '⏳ İşlem Tamamlanıyor...' : '6. Adım: İşlemi Tamamla ve Arşive Gönder ✅'}</span>
+          </button>
       </div>
     </div>
   );
